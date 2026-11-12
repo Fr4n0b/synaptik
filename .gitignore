@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+
+# Knowledge bases and caches (large, user-specific, may contain licensed text)
+data/*.db
+data/*.db-*
+*.sqlite
+
+# Large reference data
+*.fa
+*.fa.fai
+*.fasta
+*.vcf.gz
+*.vcf.gz.tbi
+scimago*.csv
+CRISPRGeneEffect.csv
+
+# Secrets
+.env
+*.env
+.synaptik.env
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

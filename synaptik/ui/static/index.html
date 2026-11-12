@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SYNAPTIK</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ------------------------------------------------------------------
+   Visual direction: laboratory instrument, not dashboard.
+   Palette from fluorescence microscopy channels -- the colours a
+   confocal user already reads as meaningful. Evidence tier is the
+   organising principle: everything else is subordinate to it.
+   ------------------------------------------------------------------ */
+:root{
+  --ink:#0d1117; --panel:#141a22; --panel-2:#1b232d; --line:#2a3542;
+  --text:#dde5ee; --text-dim:#8b9bb0; --text-faint:#5c6b7f;
+
+  /* channel colours */
+  --ch-green:#3ddc84;   /* strong evidence  */
+  --ch-cyan:#3dd6e8;    /* moderate         */
+  --ch-amber:#e8b53d;   /* weak             */
+  --ch-magenta:#e8479a; /* single-lab       */
+  --ch-red:#ff5c5c;     /* warning          */
+  --ch-violet:#a78bfa;  /* splicing         */
+
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --sans:'IBM Plex Sans',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--ink);color:var(--text);font-family:var(--sans);
+  font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased;
+}
+a{color:var(--ch-cyan)}
+
+/* ---------- masthead ---------- */
+.masthead{
+  border-bottom:1px solid var(--line);
+  padding:18px 24px;display:flex;align-items:baseline;gap:20px;flex-wrap:wrap;
+  background:linear-gradient(180deg,var(--panel) 0%,var(--ink) 100%);
+}
+.wordmark{
+  font-family:var(--mono);font-weight:600;font-size:19px;letter-spacing:.16em;
+}
+.wordmark .dot{color:var(--ch-green)}
+.tagline{color:var(--text-dim);font-size:12.5px;max-width:52ch;margin-top:3px}
+.corpus-chip{
+  margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--text-dim);
+  border:1px solid var(--line);border-radius:3px;padding:5px 10px;white-space:nowrap;
+}
+
+/* ---------- tabs ---------- */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--line);padding:0 24px;overflow-x:auto}
+.tab{
+  background:none;border:none;border-bottom:2px solid transparent;
+  color:var(--text-dim);font-family:var(--mono);font-size:12px;
+  letter-spacing:.09em;text-transform:uppercase;padding:13px 18px;cursor:pointer;
+  white-space:nowrap;transition:color .12s,border-color .12s;
+}
+.tab:hover{color:var(--text)}
+.tab[aria-selected="true"]{color:var(--ch-green);border-bottom-color:var(--ch-green)}
+.tab:focus-visible{outline:2px solid var(--ch-cyan);outline-offset:-2px}
+
+/* ---------- layout ---------- */
+main{padding:24px;max-width:1240px;margin:0 auto}
+.panel{display:none}
+.panel.active{display:block}
+
+.query-bar{
+  background:var(--panel);border:1px solid var(--line);border-radius:4px;
+  padding:16px;margin-bottom:22px;
+}
+.field-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+label{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--text-faint);margin-bottom:5px}
+input,select{
+  width:100%;background:var(--ink);border:1px solid var(--line);border-radius:3px;
+  color:var(--text);font-family:var(--sans);font-size:13.5px;padding:8px 10px;
+}
+input:focus,select:focus{outline:none;border-color:var(--ch-cyan)}
+.actions{display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap}
+button.run{
+  background:var(--ch-green);color:#04120a;border:none;border-radius:3px;
+  font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;padding:10px 22px;cursor:pointer;
+}
+button.run:hover{filter:brightness(1.1)}
+button.run:disabled{opacity:.45;cursor:default}
+button.ghost{
+  background:none;border:1px solid var(--line);color:var(--text-dim);
+  border-radius:3px;font-family:var(--mono);font-size:11px;padding:9px 14px;cursor:pointer;
+}
+button.ghost:hover{border-color:var(--text-dim);color:var(--text)}
+.hint{color:var(--text-faint);font-size:11.5px;font-family:var(--mono)}
+
+/* ---------- readout header ---------- */
+.readout{
+  border-left:2px solid var(--ch-green);background:var(--panel);
+  padding:14px 18px;margin-bottom:20px;border-radius:0 4px 4px 0;
+}
+.readout .metrics{display:flex;gap:26px;flex-wrap:wrap;margin-bottom:9px}
+.metric{font-family:var(--mono);font-size:9.5px;color:var(--text-faint);
+  letter-spacing:.09em;text-transform:uppercase;line-height:1.4}
+.metric b{display:block;font-size:20px;color:var(--text);letter-spacing:0;
+  text-transform:none;font-weight:600;line-height:1.2}
+.interp{color:var(--text);font-size:13.5px}
+
+.warn{
+  border-left:2px solid var(--ch-red);background:rgba(255,92,92,.06);
+  padding:10px 14px;margin:8px 0;font-size:12.5px;color:#ffc9c9;border-radius:0 3px 3px 0;
+}
+
+/* ---------- evidence rows ---------- */
+.evidence-list{display:flex;flex-direction:column;gap:2px}
+.ev{
+  background:var(--panel);border:1px solid var(--line);border-left-width:3px;
+  border-radius:0 3px 3px 0;
+}
+.ev[data-tier="strong"]{border-left-color:var(--ch-green)}
+.ev[data-tier="moderate"]{border-left-color:var(--ch-cyan)}
+.ev[data-tier="weak"]{border-left-color:var(--ch-amber)}
+.ev[data-tier="single-lab"]{border-left-color:var(--ch-magenta)}
+.ev[data-tier="insufficient"]{border-left-color:var(--text-faint)}
+
+.ev-head{
+  display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;
+  padding:12px 16px;cursor:pointer;
+}
+.ev-head:hover{background:var(--panel-2)}
+.ev-name{font-weight:600;font-size:14.5px}
+.ev-sub{font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-top:3px}
+.ev-stats{display:flex;gap:20px;align-items:center;font-family:var(--mono);font-size:11.5px}
+.stat{text-align:right;color:var(--text-faint);min-width:46px;
+  font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;line-height:1.35}
+.stat b{display:block;color:var(--text);font-size:14px;letter-spacing:0;
+  text-transform:none;font-weight:600;margin-bottom:1px}
+
+.tier-badge{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  padding:3px 8px;border-radius:2px;font-weight:600;white-space:nowrap;
+}
+.tier-strong{background:rgba(61,220,132,.15);color:var(--ch-green)}
+.tier-moderate{background:rgba(61,214,232,.15);color:var(--ch-cyan)}
+.tier-weak{background:rgba(232,181,61,.15);color:var(--ch-amber)}
+.tier-single-lab{background:rgba(232,71,154,.15);color:var(--ch-magenta)}
+.tier-insufficient{background:rgba(92,107,127,.15);color:var(--text-faint)}
+
+.ev-body{display:none;padding:0 16px 16px 16px;border-top:1px solid var(--line)}
+.ev.open .ev-body{display:block}
+
+/* replication meter: the number that matters most, shown as a bar */
+.meter{margin:14px 0 6px}
+.meter-label{font-family:var(--mono);font-size:10px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--text-faint);margin-bottom:5px}
+.meter-track{display:flex;gap:3px}
+.meter-cell{height:7px;flex:1;background:var(--line);border-radius:1px}
+.meter-cell.on{background:var(--ch-green)}
+.meter-cell.on.warn{background:var(--ch-magenta)}
+
+.detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:12px;margin:14px 0}
+.detail{background:var(--ink);border:1px solid var(--line);border-radius:3px;padding:9px 11px}
+.detail dt{font-family:var(--mono);font-size:9.5px;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--text-faint);margin:0 0 3px}
+.detail dd{margin:0;font-family:var(--mono);font-size:13px;color:var(--text)}
+
+.caveat{
+  border-left:2px solid var(--ch-amber);background:rgba(232,181,61,.06);
+  padding:8px 12px;margin:6px 0;font-size:12.5px;color:#f5dda0;border-radius:0 3px 3px 0;
+}
+
+.papers{margin-top:14px}
+.papers h4{font-family:var(--mono);font-size:10px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--text-faint);margin:0 0 8px;font-weight:500}
+.paper{
+  display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:start;
+  padding:8px 0;border-bottom:1px solid var(--line);font-size:12.5px;
+}
+.paper:last-child{border-bottom:none}
+.paper-dir{font-family:var(--mono);font-size:10px;padding:2px 6px;border-radius:2px;
+  white-space:nowrap;margin-top:2px}
+.dir-decrease{background:rgba(61,214,232,.15);color:var(--ch-cyan)}
+.dir-increase{background:rgba(232,181,61,.15);color:var(--ch-amber)}
+.dir-no_change{background:rgba(92,107,127,.2);color:var(--text-dim)}
+.paper-meta{font-family:var(--mono);font-size:11px;color:var(--text-faint)}
+.paper-quote{color:var(--text-dim);font-style:italic;font-size:12px;margin-top:3px}
+.paper-w{font-family:var(--mono);font-size:11px;color:var(--text-faint);white-space:nowrap}
+
+/* ---------- match tiers (lookup) ---------- */
+.tier-group{margin-bottom:26px}
+.tier-head{
+  font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  padding-bottom:7px;margin-bottom:10px;border-bottom:1px solid var(--line);
+}
+.match{background:var(--panel);border:1px solid var(--line);border-radius:3px;
+  padding:12px 15px;margin-bottom:7px}
+.match-title{font-weight:600;font-size:13.5px;margin-bottom:4px}
+.match-proto{font-family:var(--mono);font-size:11.5px;color:var(--text-dim);margin-top:6px}
+.chips{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+.chip{font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:2px;
+  background:var(--panel-2);color:var(--text-dim);border:1px solid var(--line)}
+.chip.match-on{border-color:rgba(61,220,132,.4);color:var(--ch-green)}
+.chip.differ{border-color:rgba(232,181,61,.4);color:var(--ch-amber)}
+
+/* ---------- splicing ---------- */
+.rbp{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--ch-violet);
+  border-radius:0 3px 3px 0;padding:14px 16px;margin-bottom:10px}
+.rbp-name{font-family:var(--mono);font-size:16px;font-weight:600;color:var(--ch-violet)}
+.motifs{display:flex;gap:5px;flex-wrap:wrap;margin:8px 0}
+.motif{font-family:var(--mono);font-size:11px;background:rgba(167,139,250,.12);
+  color:var(--ch-violet);padding:2px 7px;border-radius:2px;letter-spacing:.05em}
+.note{border-left:2px solid var(--ch-cyan);background:rgba(61,214,232,.06);
+  padding:8px 12px;margin:6px 0;font-size:12.5px;color:#b8ecf3;border-radius:0 3px 3px 0}
+.event-row{display:grid;grid-template-columns:90px 60px 90px 1fr;gap:12px;
+  padding:9px 0;border-bottom:1px solid var(--line);font-size:12.5px;align-items:center}
+.event-gene{font-family:var(--mono);font-weight:600}
+.nmd-high{color:var(--ch-red)}
+.nmd-moderate{color:var(--ch-amber)}
+.nmd-unknown{color:var(--text-faint)}
+
+/* ---------- states ---------- */
+.empty{color:var(--text-faint);text-align:center;padding:50px 20px;font-size:13px}
+.loading{color:var(--ch-cyan);font-family:var(--mono);font-size:12px;padding:24px;
+  text-align:center;letter-spacing:.08em}
+.error{border-left:2px solid var(--ch-red);background:rgba(255,92,92,.08);
+  padding:12px 16px;color:#ffc9c9;border-radius:0 3px 3px 0}
+
+/* corpus report */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
+.stat-card{background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:14px}
+.stat-card .v{font-family:var(--mono);font-size:24px;font-weight:600}
+.stat-card .k{font-family:var(--mono);font-size:10px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--text-faint);margin-top:3px}
+.stat-card.flag .v{color:var(--ch-amber)}
+table.freq{width:100%;border-collapse:collapse;font-size:12.5px}
+table.freq td{padding:5px 8px;border-bottom:1px solid var(--line)}
+table.freq td:first-child{font-family:var(--mono);color:var(--text-dim);width:60px;text-align:right}
+h3.sec{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--text-faint);margin:26px 0 10px;font-weight:500}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+@media (max-width:640px){
+  main{padding:16px}
+  .ev-head{grid-template-columns:1fr;gap:8px}
+  .ev-stats{justify-content:flex-start}
+  .event-row{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div>
+    <div class="wordmark">SYNAPTIK<span class="dot">.</span></div>
+    <div class="tagline">Evidence structure for iPSC-neuron phenotypes. Every claim
+      carries its replication count, assay diversity, and failure modes.</div>
+  </div>
+  <div class="corpus-chip" id="corpusChip">loading corpus…</div>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button class="tab" role="tab" aria-selected="true" data-panel="phenotype">Phenotype → Pathway</button>
+  <button class="tab" role="tab" aria-selected="false" data-panel="lookup">Experiment Lookup</button>
+  <button class="tab" role="tab" aria-selected="false" data-panel="splicing">Splicing</button>
+  <button class="tab" role="tab" aria-selected="false" data-panel="compare">Cross-check</button>
+  <button class="tab" role="tab" aria-selected="false" data-panel="corpus">Corpus</button>
+</nav>
+
+<main>
+
+<!-- ================= PHENOTYPE ================= -->
+<section class="panel active" id="panel-phenotype">
+  <div class="query-bar">
+    <div class="field-grid">
+      <div style="grid-column:1/-1">
+        <label for="phInput">Observed phenotype</label>
+        <input id="phInput" list="phList" placeholder="e.g. reduced SYN1/PSD95 colocalized puncta density">
+        <datalist id="phList"></datalist>
+      </div>
+      <div>
+        <label for="phDir">Direction observed</label>
+        <select id="phDir">
+          <option value="">any</option>
+          <option value="decrease">decrease</option>
+          <option value="increase">increase</option>
+          <option value="no_change">no change</option>
+        </select>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="run" id="phRun">Analyze</button>
+      <span class="hint">Results are ranked by evidence structure, not publication count.</span>
+    </div>
+  </div>
+  <div id="phOut"><div class="empty">Describe a phenotype you have observed to see which
+    pathways the literature associates with it — and how reliably.</div></div>
+</section>
+
+<!-- ================= LOOKUP ================= -->
+<section class="panel" id="panel-lookup">
+  <div class="query-bar">
+    <div class="field-grid">
+      <div><label for="lkModel">Cell system</label><select id="lkModel"></select></div>
+      <div><label for="lkDiv">Days in vitro</label><input id="lkDiv" type="number" placeholder="21"></div>
+      <div><label for="lkPert">Perturbation</label><select id="lkPert"></select></div>
+      <div><label for="lkTarget">Gene / target</label><input id="lkTarget" placeholder="SCN2A"></div>
+      <div><label for="lkAssay">Assay</label><select id="lkAssay"></select></div>
+      <div><label for="lkMarkers">Markers</label><input id="lkMarkers" placeholder="SYN1, PSD95"></div>
+      <div style="grid-column:1/-1"><label for="lkPheno">Readout / phenotype</label>
+        <input id="lkPheno" list="phList" placeholder="colocalized puncta density"></div>
+    </div>
+    <div class="actions">
+      <button class="run" id="lkRun">Search</button>
+      <span class="hint">Matches are graded; incomparable systems are demoted, not hidden.</span>
+    </div>
+  </div>
+  <div id="lkOut"><div class="empty">Describe the experiment you are planning.
+    Specify at least the readout or the target.</div></div>
+</section>
+
+<!-- ================= SPLICING ================= -->
+<section class="panel" id="panel-splicing">
+  <div class="query-bar">
+    <div class="field-grid">
+      <div><label for="spGene">Gene</label><input id="spGene" placeholder="STMN2"></div>
+      <div><label for="spReg">Regulator (RBP)</label><input id="spReg" placeholder="TDP-43"></div>
+    </div>
+    <div class="actions">
+      <button class="run" id="spRun">Analyze</button>
+      <span class="hint">Leave both blank to survey every splicing event in the corpus.</span>
+    </div>
+  </div>
+  <div id="spOut"><div class="empty">Splicing events, the regulators they implicate,
+    and whether each is ASO-addressable.</div></div>
+</section>
+
+<!-- ================= COMPARE ================= -->
+<section class="panel" id="panel-compare">
+  <div class="query-bar">
+    <div class="field-grid">
+      <div><label for="cmpA">Phenotype A</label><input id="cmpA" list="phList" placeholder="SYN1 puncta density"></div>
+      <div><label for="cmpB">Phenotype B</label><input id="cmpB" list="phList" placeholder="mEPSC frequency"></div>
+    </div>
+    <div class="actions">
+      <button class="run" id="cmpRun">Compare</button>
+      <span class="hint">Convergent pathways across orthogonal readouts are real support.</span>
+    </div>
+  </div>
+  <div id="cmpOut"><div class="empty">Check whether two readouts from your cells
+    implicate the same biology.</div></div>
+</section>
+
+<!-- ================= CORPUS ================= -->
+<section class="panel" id="panel-corpus">
+  <div id="cpOut"><div class="loading">loading…</div></div>
+</section>
+
+</main>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const el = (t,c,x) => { const e=document.createElement(t); if(c)e.className=c;
+  if(x!==undefined)e.textContent=x; return e; };
+const esc = s => String(s??'').replace(/[&<>"']/g,
+  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtP = p => p==null ? '—' : (p<1e-4 ? p.toExponential(1) : p.toFixed(4));
+const fmtES = (v,u) => v==null ? '—' :
+  (u==='percent_change' ? (v>0?'+':'')+v.toFixed(0)+'%' : v.toFixed(2));
+
+async function api(path, body){
+  const opt = body ? {method:'POST',headers:{'Content-Type':'application/json'},
+                      body:JSON.stringify(body)} : {};
+  const r = await fetch(path, opt);
+  const d = await r.json().catch(()=>({error:'Server returned an unreadable response.'}));
+  if(!r.ok) throw new Error(d.error || `Request failed (${r.status}).`);
+  return d;
+}
+function showLoading(node,msg){ node.innerHTML=''; node.appendChild(el('div','loading',msg||'working…')); }
+function showError(node,e){ node.innerHTML=''; const d=el('div','error');
+  d.textContent = e.message || String(e); node.appendChild(d); }
+
+/* ---------- tabs ---------- */
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected','false'));
+    document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+    t.setAttribute('aria-selected','true');
+    $('#panel-'+t.dataset.panel).classList.add('active');
+    if(t.dataset.panel==='corpus') loadCorpus();
+  });
+});
+
+/* ---------- vocabulary ---------- */
+let VOCAB=null;
+async function loadVocab(){
+  VOCAB = await api('/api/vocab');
+  const dl=$('#phList'); dl.innerHTML='';
+  VOCAB.phenotypes.forEach(p=>{
+    const o=document.createElement('option'); o.value=p.label; dl.appendChild(o);
+  });
+  const fill=(sel,vals,blank)=>{
+    const s=$(sel); s.innerHTML='';
+    const b=document.createElement('option'); b.value=''; b.textContent=blank; s.appendChild(b);
+    vals.forEach(v=>{ const o=document.createElement('option');
+      o.value=v; o.textContent=v.replace(/_/g,' '); s.appendChild(o); });
+  };
+  fill('#lkModel',VOCAB.models,'any system');
+  fill('#lkPert',VOCAB.perturbations,'any perturbation');
+  fill('#lkAssay',VOCAB.assays,'any assay');
+}
+
+/* ---------- corpus chip ---------- */
+async function loadChip(){
+  try{
+    const s = await api('/api/stats');
+    $('#corpusChip').textContent =
+      `${s.records.toLocaleString()} records · ${s.sources.toLocaleString()} papers · ${s.distinct_labs} groups`;
+  }catch(e){ $('#corpusChip').textContent='corpus unavailable'; }
+}
+
+/* ---------- phenotype ---------- */
+function replicationMeter(nLabs, nAssays){
+  const wrap = el('div','meter');
+  wrap.appendChild(el('div','meter-label',
+    `independent groups: ${nLabs}  ·  assay families: ${nAssays}`));
+  const track = el('div','meter-track');
+  for(let i=0;i<6;i++){
+    const c = el('div','meter-cell');
+    if(i<nLabs){ c.classList.add('on'); if(nLabs<2) c.classList.add('warn'); }
+    track.appendChild(c);
+  }
+  wrap.appendChild(track);
+  return wrap;
+}
+
+function assocCard(a){
+  const card = el('div','ev'); card.dataset.tier=a.tier;
+
+  const head = el('div','ev-head');
+  head.setAttribute('role','button'); head.tabIndex=0;
+  const left = el('div');
+  left.appendChild(el('div','ev-name',a.pathway));
+  left.appendChild(el('div','ev-sub',
+    `${a.n_records} records · ${a.n_papers} papers · ${a.direction} (${Math.round(a.direction_consistency*100)}% agree)`));
+  head.appendChild(left);
+
+  const stats = el('div','ev-stats');
+  const s1=el('div','stat'); s1.appendChild(el('b',null,a.n_labs)); s1.append('labs'); stats.appendChild(s1);
+  const s2=el('div','stat'); s2.appendChild(el('b',null,a.enrichment.toFixed(1)+'×')); s2.append('enrich'); stats.appendChild(s2);
+  const s3=el('div','stat'); s3.appendChild(el('b',null,fmtP(a.q_value))); s3.append('q'); stats.appendChild(s3);
+  stats.appendChild(el('span','tier-badge tier-'+a.tier, a.tier));
+  head.appendChild(stats);
+  card.appendChild(head);
+
+  const body = el('div','ev-body');
+  body.appendChild(replicationMeter(a.n_labs, a.n_assay_families));
+
+  const grid = el('div','detail-grid');
+  const D=(k,v)=>{ const d=el('div','detail'); const dt=el('dt',null,k);
+    const dd=el('dd',null,v); d.append(dt,dd); return d; };
+  grid.appendChild(D('leave-one-lab-out',
+    a.lolo_enrichment==null ? 'n/a (single lab)' :
+    `${a.lolo_enrichment}× ${a.survives_lolo?'— survives':'— FAILS'}`));
+  grid.appendChild(D('null results', a.n_negative));
+  grid.appendChild(D('median effect',
+    a.median_effect_size==null?'not quantified':a.median_effect_size.toFixed(0)));
+  grid.appendChild(D('lab concentration', a.lab_concentration));
+  grid.appendChild(D('years',
+    a.first_year? `${a.first_year}–${a.last_year}` : '—'));
+  body.appendChild(grid);
+
+  (a.caveats||[]).forEach(c=> body.appendChild(el('div','caveat','! '+c)));
+
+  if(a.supporting && a.supporting.length){
+    const p = el('div','papers');
+    p.appendChild(el('h4',null,'supporting records'));
+    a.supporting.forEach(s=>{
+      const row = el('div','paper');
+      row.appendChild(el('span','paper-dir dir-'+s.direction, s.direction.replace('_',' ')));
+      const mid = el('div');
+      mid.appendChild(el('div',null, s.title || s.source_id));
+      mid.appendChild(el('div','paper-meta',
+        `${s.journal||'—'} ${s.year||''} · ${s.assay.replace(/_/g,' ')} · ${s.source_id}`));
+      if(s.quote) mid.appendChild(el('div','paper-quote','“'+s.quote+'”'));
+      row.appendChild(mid);
+      row.appendChild(el('span','paper-w','w '+s.weight.toFixed(2)));
+      p.appendChild(row);
+    });
+    body.appendChild(p);
+  }
+  card.appendChild(body);
+
+  const toggle=()=>card.classList.toggle('open');
+  head.addEventListener('click',toggle);
+  head.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle();} });
+  return card;
+}
+
+function renderPhenotype(d){
+  const out=$('#phOut'); out.innerHTML='';
+
+  const r = el('div','readout');
+  const m = el('div','metrics');
+  const M=(k,v)=>{ const x=el('div','metric'); x.appendChild(el('b',null,v)); x.append(k); return x; };
+  m.appendChild(M('records',d.n_records));
+  m.appendChild(M('papers',d.n_papers));
+  m.appendChild(M('independent groups',d.n_labs));
+  m.appendChild(M('corpus',d.corpus_size));
+  r.appendChild(m);
+  if(d.resolved_label) r.appendChild(el('div','metric','resolved to: '+d.resolved_label));
+  r.appendChild(el('div','interp',d.interpretation));
+  out.appendChild(r);
+
+  (d.warnings||[]).forEach(w=>out.appendChild(el('div','warn','! '+w)));
+
+  if(!d.associations.length){
+    out.appendChild(el('div','empty','No pathway is enriched above background for this phenotype.'));
+    return;
+  }
+  const list=el('div','evidence-list');
+  d.associations.forEach(a=>list.appendChild(assocCard(a)));
+  out.appendChild(list);
+
+  if(d.regulators && d.regulators.length){
+    out.appendChild(el('h3','sec','splicing regulators implicated'));
+    d.regulators.forEach(rg=>{
+      const c=el('div','rbp');
+      c.appendChild(el('div','rbp-name',rg.rbp));
+      c.appendChild(el('div','ev-sub',
+        `${rg.n_events} events · ${rg.n_labs} labs`));
+      c.appendChild(el('div',null,rg.signature));
+      (rg.notes||[]).slice(0,3).forEach(n=>c.appendChild(el('div','note','→ '+n)));
+      (rg.caveats||[]).forEach(n=>c.appendChild(el('div','caveat','! '+n)));
+      out.appendChild(c);
+    });
+  }
+  if(d.drugs && d.drugs.length){
+    out.appendChild(el('h3','sec','direction-matched compounds'));
+    d.drugs.forEach(dr=>{
+      const c=el('div','match');
+      c.appendChild(el('div','match-title',dr.name));
+      c.appendChild(el('div','match-proto',
+        `${dr.target} ${dr.moa} · ${dr.stage} · ${dr.potency_nm?dr.potency_nm.toFixed(0)+' nM':'potency unknown'} · ${dr.cns_summary}`));
+      c.appendChild(el('div','ev-sub',dr.rationale));
+      (dr.cns_notes||[]).forEach(n=>c.appendChild(el('div','caveat','! '+n)));
+      (dr.warnings||[]).forEach(n=>c.appendChild(el('div','warn','! '+n)));
+      (dr.prior_evidence||[]).forEach(n=>c.appendChild(el('div','note','✓ already tested: '+n)));
+      out.appendChild(c);
+    });
+  }
+}
+
+$('#phRun').addEventListener('click', async ()=>{
+  const q=$('#phInput').value.trim();
+  if(!q){ $('#phInput').focus(); return; }
+  const out=$('#phOut'); showLoading(out,'mining literature…');
+  try{ renderPhenotype(await api('/api/phenotype',
+        {phenotype:q, direction:$('#phDir').value})); }
+  catch(e){ showError(out,e); }
+});
+$('#phInput').addEventListener('keydown',e=>{ if(e.key==='Enter')$('#phRun').click(); });
+
+/* ---------- lookup ---------- */
+const TIER_LABEL = {
+  exact:'Exact — this experiment has been done',
+  close:'Close — differs in one dimension',
+  related:'Related — context, not a direct answer',
+  adjacent:'Adjacent — background'
+};
+const TIER_COLOR = {exact:'var(--ch-green)',close:'var(--ch-cyan)',
+  related:'var(--ch-amber)',adjacent:'var(--text-faint)'};
+
+function renderLookup(d){
+  const out=$('#lkOut'); out.innerHTML='';
+  const r=el('div','readout');
+  if(d.conflicting) r.style.borderLeftColor='var(--ch-red)';
+  const m=el('div','metrics');
+  const M=(k,v)=>{const x=el('div','metric'); x.appendChild(el('b',null,v)); x.append(k); return x;};
+  m.appendChild(M('exact',d.n_exact)); m.appendChild(M('close',d.n_close));
+  r.appendChild(m);
+  r.appendChild(el('div','interp',d.verdict));
+  out.appendChild(r);
+
+  let any=false;
+  ['exact','close','related','adjacent'].forEach(t=>{
+    const rows=d.tiers[t]||[]; if(!rows.length) return;
+    any=true;
+    const g=el('div','tier-group');
+    const h=el('div','tier-head',TIER_LABEL[t]+`  (${rows.length})`);
+    h.style.color=TIER_COLOR[t]; g.appendChild(h);
+    rows.slice(0,12).forEach(mt=>{
+      const c=el('div','match');
+      c.appendChild(el('div','match-title',
+        `${mt.first_author||'?'} ${mt.year||''} — ${mt.phenotype} ${fmtES(mt.effect_size,mt.effect_unit)}`));
+      c.appendChild(el('div','paper-meta',
+        `${mt.journal||'—'}${mt.quartile?' ('+mt.quartile+')':''} · ${mt.source_id} · sim ${mt.similarity} · weight ${mt.weight}`));
+      const p=mt.protocol, bits=[];
+      if(p.differentiation) bits.push(p.differentiation);
+      if(p.div) bits.push('DIV'+p.div);
+      if(p.coculture) bits.push(p.coculture);
+      if(p.markers && p.markers.length) bits.push(p.markers.join('/'));
+      if(p.n_replicates) bits.push('n='+p.n_replicates);
+      if(p.isogenic) bits.push('isogenic');
+      if(p.statistical_test) bits.push(p.statistical_test);
+      if(bits.length) c.appendChild(el('div','match-proto','protocol: '+bits.join(' · ')));
+      const chips=el('div','chips');
+      (mt.matched_on||[]).forEach(x=>chips.appendChild(el('span','chip match-on',x)));
+      (mt.differs_on||[]).forEach(x=>chips.appendChild(el('span','chip differ',x)));
+      if(mt.is_retracted) chips.appendChild(el('span','chip differ','RETRACTED'));
+      if(mt.is_preprint) chips.appendChild(el('span','chip','preprint'));
+      c.appendChild(chips);
+      g.appendChild(c);
+    });
+    if(rows.length>12) g.appendChild(el('div','hint',`… and ${rows.length-12} more`));
+    out.appendChild(g);
+  });
+  if(!any) out.appendChild(el('div','empty','Nothing in the corpus matches this experiment.'));
+}
+
+$('#lkRun').addEventListener('click', async ()=>{
+  const out=$('#lkOut'); showLoading(out,'searching…');
+  try{
+    renderLookup(await api('/api/lookup',{
+      model:$('#lkModel').value, div:$('#lkDiv').value,
+      perturbation:$('#lkPert').value, target:$('#lkTarget').value,
+      assay:$('#lkAssay').value, phenotype:$('#lkPheno').value,
+      markers:$('#lkMarkers').value.split(',').map(s=>s.trim()).filter(Boolean)
+    }));
+  }catch(e){ showError(out,e); }
+});
+
+/* ---------- splicing ---------- */
+function renderSplicing(d){
+  const out=$('#spOut'); out.innerHTML='';
+  if(!d.n_events){
+    out.appendChild(el('div','empty', d.message||'No splicing events match.'));
+    return;
+  }
+  const r=el('div','readout'); r.style.borderLeftColor='var(--ch-violet)';
+  const m=el('div','metrics');
+  const M=(k,v)=>{const x=el('div','metric'); x.appendChild(el('b',null,v)); x.append(k); return x;};
+  m.appendChild(M('events',d.n_events)); m.appendChild(M('genes',d.genes.length));
+  m.appendChild(M('regulators',d.regulators.length));
+  r.appendChild(m);
+  r.appendChild(el('div','interp','genes: '+d.genes.slice(0,20).join(', ')));
+  out.appendChild(r);
+
+  if(d.regulators.length){
+    out.appendChild(el('h3','sec','implicated regulators'));
+    d.regulators.forEach(rg=>{
+      const c=el('div','rbp');
+      c.appendChild(el('div','rbp-name',rg.rbp));
+      c.appendChild(el('div','ev-sub',
+        `${rg.n_events} events · ${rg.n_papers} papers · ${rg.n_labs} labs · ${Math.round(rg.consistency*100)}% consistent`));
+      c.appendChild(el('div',null,rg.signature));
+      if(rg.motifs && rg.motifs.length){
+        const mo=el('div','motifs');
+        rg.motifs.forEach(x=>mo.appendChild(el('span','motif',x)));
+        c.appendChild(mo);
+      }
+      if(rg.canonical_effect) c.appendChild(el('div','paper-meta',rg.canonical_effect));
+      (rg.notes||[]).forEach(n=>c.appendChild(el('div','note','→ '+n)));
+      (rg.caveats||[]).forEach(n=>c.appendChild(el('div','caveat','! '+n)));
+      out.appendChild(c);
+    });
+  }
+
+  out.appendChild(el('h3','sec','events and therapeutic entry points'));
+  const tbl=el('div');
+  d.events.slice(0,25).forEach(e=>{
+    const row=el('div','event-row');
+    row.appendChild(el('div','event-gene',e.gene));
+    row.appendChild(el('div','paper-meta',e.event_type));
+    row.appendChild(el('div','paper-meta',
+      (e.delta_psi!=null?(e.delta_psi>0?'+':'')+e.delta_psi.toFixed(2):'—')+
+      (e.sign_confidence!=='high'?' ⚠':'')));
+    const right=el('div');
+    right.appendChild(el('span','nmd-'+e.nmd_risk,'NMD '+e.nmd_risk));
+    if(e.aso_feasible){
+      const a=el('div','note','ASO: '+e.aso_approach);
+      right.appendChild(a);
+      if(e.aso_precedent) right.appendChild(el('div','paper-meta','precedent: '+e.aso_precedent));
+    }
+    row.appendChild(right);
+    tbl.appendChild(row);
+  });
+  out.appendChild(tbl);
+}
+
+$('#spRun').addEventListener('click', async ()=>{
+  const out=$('#spOut'); showLoading(out,'analyzing splicing…');
+  try{ renderSplicing(await api('/api/splicing',
+        {gene:$('#spGene').value, regulator:$('#spReg').value})); }
+  catch(e){ showError(out,e); }
+});
+
+/* ---------- compare ---------- */
+$('#cmpRun').addEventListener('click', async ()=>{
+  const out=$('#cmpOut'); showLoading(out,'comparing…');
+  try{
+    const d = await api('/api/compare',
+      {phenotype_a:$('#cmpA').value, phenotype_b:$('#cmpB').value});
+    out.innerHTML='';
+    const r=el('div','readout');
+    const m=el('div','metrics');
+    const M=(k,v)=>{const x=el('div','metric'); x.appendChild(el('b',null,v)); x.append(k); return x;};
+    m.appendChild(M('jaccard overlap',d.jaccard.toFixed(2)));
+    m.appendChild(M('A records',d.phenotype_a.n_records));
+    m.appendChild(M('B records',d.phenotype_b.n_records));
+    r.appendChild(m); r.appendChild(el('div','interp',d.verdict));
+    out.appendChild(r);
+    if(d.shared_pathways.length){
+      out.appendChild(el('h3','sec','shared pathways'));
+      d.shared_pathways.forEach(s=>{
+        const c=el('div','match');
+        c.appendChild(el('div','match-title',s.pathway));
+        const t=el('div','match-proto',
+          `A: ${s.enrichment_a}× (${s.direction_a})  ·  B: ${s.enrichment_b}× (${s.direction_b})`);
+        c.appendChild(t);
+        c.appendChild(el('div', s.consistent_direction?'note':'caveat',
+          s.consistent_direction?'✓ directions agree':'! directions are OPPOSITE across readouts'));
+        out.appendChild(c);
+      });
+    } else {
+      out.appendChild(el('div','empty','No pathways are shared between these profiles.'));
+    }
+  }catch(e){ showError(out,e); }
+});
+
+/* ---------- corpus ---------- */
+let corpusLoaded=false;
+async function loadCorpus(){
+  if(corpusLoaded) return;
+  const out=$('#cpOut');
+  try{
+    const s=await api('/api/stats'); out.innerHTML=''; corpusLoaded=true;
+    const grid=el('div','stat-grid');
+    const C=(k,v,flag)=>{ const c=el('div','stat-card'+(flag?' flag':''));
+      c.appendChild(el('div','v',v)); c.appendChild(el('div','k',k)); return c; };
+    grid.appendChild(C('records',s.records.toLocaleString()));
+    grid.appendChild(C('papers',s.sources.toLocaleString()));
+    grid.appendChild(C('independent groups',s.distinct_labs));
+    grid.appendChild(C('splicing events',s.splicing_events));
+    grid.appendChild(C('quantified',Math.round(s.quantified_fraction*100)+'%',
+      s.quantified_fraction<0.4));
+    grid.appendChild(C('null results',Math.round(s.negative_result_fraction*100)+'%',
+      s.negative_result_fraction<0.05));
+    grid.appendChild(C('unmapped phenotypes',Math.round(s.unmapped_fraction*100)+'%',
+      s.unmapped_fraction>0.25));
+    grid.appendChild(C('retracted',s.retracted, s.retracted>0));
+    out.appendChild(grid);
+
+    const T=(title,rows)=>{
+      out.appendChild(el('h3','sec',title));
+      const t=el('table','freq');
+      rows.forEach(([k,c])=>{ const tr=el('tr');
+        tr.appendChild(el('td',null,c)); tr.appendChild(el('td',null,k)); t.appendChild(tr); });
+      out.appendChild(t);
+    };
+    T('most frequent phenotypes',s.top_phenotypes);
+    T('most frequent pathways',s.top_pathways);
+    T('most prolific groups — check for over-representation',s.most_prolific_labs);
+  }catch(e){ showError(out,e); }
+}
+
+/* ---------- init ---------- */
+loadVocab().catch(()=>{});
+loadChip().catch(()=>{});
+</script>
+</body>
+</html>

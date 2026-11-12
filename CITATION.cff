@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use SYNAPTIK in your research, please cite it as below."
+title: "SYNAPTIK: evidence-structure analysis for iPSC-neuron research"
+type: software
+authors:
+  - family-names: "Nobile"
+    given-names: "Francesco"
+    affiliation: "Center for Genomic Medicine, Massachusetts General Hospital / Harvard Medical School; University of Pavia"
+version: 0.2.0
+date-released: 2026-11-12
+license: MIT
+repository-code: "https://github.com/Fr4n0b/synaptik"
+keywords:
+  - iPSC
+  - neuroscience
+  - alternative splicing
+  - literature mining
+  - evidence synthesis
+  - SpliceAI
