@@ -1,0 +1,30 @@
+{
+  "target_gene": "STMN2",
+  "endpoint": "Motor axon outgrowth velocity (um/hr)",
+  "sites": [
+    {
+      "site_id": "Center for Genomic Medicine, MGH",
+      "n_pairs": 10,
+      "mean_difference": -32.4,
+      "standard_error": 3.1
+    },
+    {
+      "site_id": "Stanford Institute for Stem Cell Biology",
+      "n_pairs": 8,
+      "mean_difference": -34.8,
+      "standard_error": 3.9
+    },
+    {
+      "site_id": "UCL Queen Square Motor Neuron Centre",
+      "n_pairs": 12,
+      "mean_difference": -29.6,
+      "standard_error": 2.7
+    },
+    {
+      "site_id": "Karolinska Institute Department of Neuroscience",
+      "n_pairs": 8,
+      "mean_difference": -31.2,
+      "standard_error": 3.5
+    }
+  ]
+}

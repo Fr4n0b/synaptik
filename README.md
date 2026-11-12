@@ -129,6 +129,10 @@ says why.
   in vivo clinical plasma/CSF Neurofilament Light Chain (NfL) pharmacodynamic suppression from in vitro axonal rescue,
   evaluates FDA accelerated approval surrogate milestones, and calculates clinical trial sample size optimization
   via biomarker-enriched patient progression stratification (saving 60–75% patient cohort burden)
+- **Preclinical study design registry & multi-site meta-analysis** (`synaptik protocol`): pre-registration grade
+  study protocol generator with immutable cryptographic SHA-256 design fingerprinting, randomized 96-well block
+  mapping (perimeter edge-effect evaporation barriers), double-blinding tokens, and DerSimonian-Laird inverse-variance
+  random-effects meta-analysis ($Q, \tau^2, I^2$ heterogeneity, and leave-one-site-out sensitivity) across multi-lab replication cohorts
 - **Dish-to-brain human post-mortem snRNA-seq bridge** (`synaptik translate`): reconciles dish findings against
   human post-mortem single-nucleus transcriptomic disease atlases (ALS NYGC Consortium, SEA-AD Alzheimer's, FTD),
   evaluates cryptic exon inclusion pathology (*STMN2*, *UNC13A*), maps cell-type specificity (upper/lower motor neurons,
@@ -238,6 +242,12 @@ synaptik simulate --disease als --screen
 # Model clinical plasma NfL trajectories and optimize clinical trial patient stratification
 synaptik biomarker --disease als --target STMN2 --rescue-pct 75
 
+# Generate pre-registered preclinical study protocols with cryptographic design fingerprints
+synaptik protocol --target STMN2 --disease als --pairs 8
+
+# Synthesize multi-laboratory replication datasets via random-effects meta-analysis
+synaptik protocol --meta-analysis examples/multisite_stmn2.json
+
 # Bridge in vitro dish findings to human post-mortem single-cell brain atlases
 synaptik translate --splicing voila_majiq.tsv --disease als
 synaptik translate --genes STMN2 UNC13A TARDBP --disease als
@@ -310,6 +320,7 @@ synaptik/
   translate/   dish-to-brain human post-mortem single-cell atlas concordance
   simulate/    causal genomic counterfactual simulator & therapeutic target screening
   biomarker/   translational fluid biomarker trajectories (NfL) & trial stratification
+  protocol/    preclinical study design registry & multi-site meta-analysis synthesis
   cli/         command-line interface
   ui/          Flask web interface
 ```
@@ -351,7 +362,7 @@ on output:
   report.** Design briefs show a range of assumed CVs; supply your own with
   `--cv` for a real estimate, and use `--rho` for paired isogenic designs.
 
-The test suite (321 checks across 6 suites) encodes the properties that make output
+The test suite (342 checks across 7 suites) encodes the properties that make output
 trustworthy. If it fails, the output should not be used.
 
 ---
@@ -364,6 +375,7 @@ trustworthy. If it fails, the output should not be used.
 - [x] Dish-to-brain human post-mortem single-nucleus RNA-seq translational bridge (`synaptik translate`)
 - [x] Causal Genomic Counterfactual Simulator: in silico knockouts & rescue phenotype modeling (`synaptik simulate`)
 - [x] Fluid Biomarker Matching Panel: mapping in vitro phenotypic rescue to patient CSF/plasma NfL trajectories (`synaptik biomarker`)
+- [x] Preclinical Study Design Registry & Multi-Site Meta-Analysis Protocol (`synaptik protocol`)
 - [ ] Live-API integration tests in CI on a weekly schedule
 - [ ] Pangolin integration for tissue-aware splice prediction
 - [ ] Manual-curation interface for research-group clustering
@@ -374,7 +386,6 @@ trustworthy. If it fails, the output should not be used.
       tables) so a lab's own unpublished results can be reconciled against the literature
 - [x] Native parsers for MAJIQ (VOILA) and LeafCutter output with multi-junction and cluster coordinate handling
 - [x] Paired-design power analysis for isogenic iPSC disease modeling (exact noncentral-$t$ across $\rho$)
-- [ ] Preclinical Multi-Site Study Design Registry & Meta-Analysis Protocol
 - [ ] Cell-type-resolved expression (Allen Brain Atlas, iPSC-neuron scRNA-seq atlases)
 - [ ] LINCS / CMap perturbation signatures as an additional functional evidence class
 - [ ] Shared, versioned knowledge-base snapshots for collaborating labs

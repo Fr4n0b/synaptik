@@ -515,6 +515,28 @@ where $\tau \approx 8\text{ weeks}$ (systemic NfL clearance half-time) and $\bet
 **Patient cohort enrichment and sample size reduction.**
 In unstratified all-comers trials, inter-individual heterogeneity in baseline disease progression rates inflates variance ($\text{CV} \approx 0.50\text{--}0.65$), requiring $70\text{--}150$ patients per arm. Stratifying cohorts by baseline plasma NfL into progression tiers (fast: $> 75\text{ pg/mL}$, intermediate: $40\text{--}75\text{ pg/mL}$, slow: $< 40\text{ pg/mL}$) reduces variance ($\text{CV} \approx 0.30\text{--}0.32$), cutting required cohort sample size per arm by $60\text{--}75\%$ (e.g. from 74 down to 18 patients/arm) to detect a 30% slowing in functional decline.
 
+## Preclinical study design registry and multi-site meta-analysis
+
+The preclinical reproducibility crisis in translational neuroscience stems from unblinded assays, unstandardized culture conditions, and lack of protocol pre-registration.
+
+**Pre-registration and cryptographic fingerprinting.**
+SYNAPTIK computes a deterministic SHA-256 digest of pre-specified primary/secondary endpoints, sample size power calculations, and pairing parameters, issuing an immutable protocol certificate and two-operator blinding token before data acquisition begins.
+
+**Randomized block plate architecture.**
+Automates 96-well allocation with perimeter evaporation barriers (reserving rows A/H and columns 1/12 for PBS) to eliminate meniscus edge-effects, alternating mutant and isogenic control pairs across inner wells.
+
+**Inverse-variance random-effects meta-analysis.**
+Implements DerSimonian & Laird (1986) random-effects pooling across multi-laboratory replication datasets:
+- Fixed-effect weight: $w_i = 1 / s_i^2$
+- Cochran's $Q$:
+  $$Q = \sum_{i=1}^k w_i (y_i - \bar{y}_{\text{FE}})^2$$
+- Between-study variance $\tau^2$:
+  $$\tau^2 = \max\left(0, \frac{Q - (k - 1)}{\sum w_i - \frac{\sum w_i^2}{\sum w_i}}\right)$$
+- Random-effects weight: $w_i^* = 1 / (s_i^2 + \tau^2)$
+- Heterogeneity index:
+  $$I^2 = \max\left(0, \frac{Q - (k - 1)}{Q}\right) \times 100\%$$
+- Accompanied by leave-one-site-out sensitivity analysis verifying that the pooled finding does not collapse upon omission of any single research group.
+
 ## Phenotype pooling
 
 Records for related phenotype terms are pooled when analysing a phenotype.

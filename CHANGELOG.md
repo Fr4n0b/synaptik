@@ -2,6 +2,23 @@
 
 All notable changes to SYNAPTIK are recorded here.
 
+## 0.6.0 — 2026-11-12
+
+### Added
+- **`synaptik protocol` — Preclinical Study Design Registry & Multi-Site Meta-Analysis**:
+  - Pre-registration grade preclinical study protocol generation (`synaptik/protocol/registry.py`) aligned with Nature/PLoS reproducibility guidelines (Landis et al. Nature 2012, Macleod et al. PLoS Biol 2015).
+  - Pre-specifies primary and secondary quantitative endpoints, target disease model, maturity DIV, and paired sample sizes with power justifications.
+  - **Cryptographic Pre-Registration Hashing**: Computes a deterministic SHA-256 design fingerprint and blinding verification token (`SYN-...`) guaranteeing immutable registration before experimental unblinding.
+  - **Randomized Complete Block Layout (RCBD)**: Automated 96-well plate mapping with edge-effect avoidance (perimeter buffer wells reserved for evaporation barrier) and alternating mutant / isogenic control pairs.
+  - **Multi-Site Random-Effects Meta-Analysis**:
+    - Synthesizes multi-laboratory replication datasets via the DerSimonian-Laird inverse-variance random-effects estimator.
+    - Evaluates heterogeneity metrics: Cochran's $Q$, degrees of freedom, between-study variance $\tau^2$, and $I^2$ index.
+    - Automated leave-one-site-out sensitivity analysis verifying whether replicability holds upon omitting any single laboratory.
+    - Included gold-standard multi-site trial dataset `examples/multisite_stmn2.json` (MGH, Stanford, UCL, Karolinska).
+  - CLI command `synaptik protocol [--target <GENE>] [--disease <DISEASE>] [--pairs <N>] [--rho <FLOAT>] [--meta-analysis <FILE>] [--json]`.
+  - Python API workflows: `generate_study_protocol()`, `synthesize_multisite_replication()`, `protocol_to_dict()`, `meta_analysis_to_dict()` in `synaptik/workflows.py`.
+  - Dedicated regression test suite [tests/test_protocol.py](file:///c:/Users/frano/OneDrive/Desktop/Virtual_neuron/tests/test_protocol.py) with 21 checks (342 platform checks total across 7 test suites).
+
 ## 0.5.1 — 2026-11-12
 
 ### Added

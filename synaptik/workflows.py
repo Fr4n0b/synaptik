@@ -388,3 +388,58 @@ def biomarker_result_to_dict(res) -> dict:
         "actionable_trial_recommendations": res.actionable_trial_recommendations,
     }
 
+
+def generate_study_protocol(
+    target_gene: str,
+    disease: str = "als",
+    cell_model: str = "ipsc_motor_neuron",
+    maturity_div: int = 28,
+    assay_family: str = "imaging_synaptic_puncta",
+    primary_endpoint: str = "SYN1/PSD95 colocalized puncta density",
+    paired_n: int = 8,
+    rho: float = 0.75,
+) -> dict:
+    """Generate a pre-registration grade preclinical study design protocol."""
+    from .protocol.registry import create_preclinical_protocol
+    proto = create_preclinical_protocol(
+        target_gene=target_gene,
+        disease=disease,
+        cell_model=cell_model,
+        maturity_div=maturity_div,
+        assay_family=assay_family,
+        primary_endpoint=primary_endpoint,
+        paired_n=paired_n,
+        rho=rho,
+    )
+    return protocol_to_dict(proto)
+
+
+def protocol_to_dict(proto) -> dict:
+    from dataclasses import asdict
+    return asdict(proto)
+
+
+def synthesize_multisite_replication(
+    sites: list[dict],
+    target_gene: str = "STMN2",
+    endpoint: str = "Axon outgrowth velocity",
+) -> dict:
+    """Synthesize multi-site replication studies via random-effects meta-analysis."""
+    from .protocol.registry import SiteReplicationResult, run_random_effects_meta_analysis
+    site_objs = [
+        SiteReplicationResult(
+            site_id=s["site_id"],
+            n_pairs=int(s["n_pairs"]),
+            mean_difference=float(s["mean_difference"]),
+            standard_error=float(s["standard_error"]),
+        )
+        for s in sites
+    ]
+    meta = run_random_effects_meta_analysis(site_objs, target_gene=target_gene, endpoint=endpoint)
+    return meta_analysis_to_dict(meta)
+
+
+def meta_analysis_to_dict(meta) -> dict:
+    from dataclasses import asdict
+    return asdict(meta)
+
