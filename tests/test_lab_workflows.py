@@ -421,8 +421,14 @@ def test_pooling_and_vocabulary() -> None:
     m = PhenotypeMatcher()
     want = {
         "weighted mean firing rate": "EPHYS:0006",
+        "mfr": "EPHYS:0006",
+        "mean firing rate (mfr)": "EPHYS:0006",
         "network burst duration": "EPHYS:0007",
+        "mea burst duration": "EPHYS:0007",
         "synchrony index": "EPHYS:0008",
+        "spike synchrony": "EPHYS:0008",
+        "pairwise synchrony": "EPHYS:0008",
+        "correlation index": "EPHYS:0008",
         "resting membrane potential": "EPHYS:0009",
         "input resistance": "EPHYS:0010",
         "rheobase": "EPHYS:0011",

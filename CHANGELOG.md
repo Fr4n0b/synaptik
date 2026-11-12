@@ -28,12 +28,12 @@ that meets a lab's own data and decisions.
 - **Web interface**: a *My Data* upload tab, a *Design brief* action on the
   lookup tab, and the benchmark on the corpus tab.
 - **Phenotype vocabulary**: MEA metrics (mean firing rate, burst duration,
-  network synchrony), patch-clamp intrinsic properties (resting membrane
+  network synchrony; including synonyms contributed by @HarshRajSinghania), patch-clamp intrinsic properties (resting membrane
   potential, input resistance, rheobase, AP threshold, capacitance), mIPSC
   amplitude, inhibitory synaptic puncta, colocalization coefficients, and
-  dendritic spine morphology. 48 terms, 320 synonyms.
+  dendritic spine morphology. 48 terms, 328 synonyms.
 - `examples/` with synthetic input files, and `tests/test_lab_workflows.py`
-  (87 checks; 221 in total).
+  (93 checks; 227 in total).
 
 ### Fixed (scientific correctness)
 - **Phenotype pooling no longer merges distinct biology.** Terms were pooled
