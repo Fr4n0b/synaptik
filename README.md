@@ -7,6 +7,8 @@
 [![Tests](https://github.com/Fr4n0b/synaptik/actions/workflows/tests.yml/badge.svg)](https://github.com/Fr4n0b/synaptik/actions/workflows/tests.yml)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Fr4n0b/synaptik/blob/main/notebooks/quickstart.ipynb)
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://fr4n0b.github.io/synaptik/)
+[![GitHub release](https://img.shields.io/github/v/release/Fr4n0b/synaptik)](https://github.com/Fr4n0b/synaptik/releases)
+[![Discussions](https://img.shields.io/badge/Discussions-Join-purple)](https://github.com/Fr4n0b/synaptik/discussions)
 ![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Status](https://img.shields.io/badge/status-alpha-orange)
@@ -199,6 +201,33 @@ for assoc in result.strong_only():
 ---
 
 ## Architecture
+
+```mermaid
+flowchart TD
+    subgraph INGEST["1. Ingestion & Extraction"]
+        A["Europe PMC / PubMed / bioRxiv"] --> B["Verbatim Quote Extraction"]
+        B --> C["API Contract Validation"]
+    end
+
+    subgraph NORM["2. Normalization & Evidence Structure"]
+        C --> D["Phenotype Ontology & Lab Resolution"]
+        D --> E["Independent Lab Count (Leave-One-Out)"]
+        D --> F["Assay Diversity & Direction Agreement"]
+    end
+
+    subgraph OMICS["3. Multi-Class Genomic Reconciliation"]
+        G["SpliceAI / Sequence Models"] --> H["Cross-Layer Reconciliation Engine"]
+        I["gnomAD Constraint / ClinVar / DepMap"] --> H
+        E --> H
+        F --> H
+    end
+
+    subgraph OUT["4. Downstream Interfaces"]
+        H --> J["Experiment Lookup & Phenotype Analysis"]
+        H --> K["Target Prioritization & Drug Mechanism Match"]
+        H --> L["Interactive Web UI & Python API"]
+    end
+```
 
 ```
 synaptik/
