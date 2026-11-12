@@ -1,5 +1,6 @@
 """Tests for Autonomous N-of-1 Rare Disease & Translational Pipeline (`synaptik nof1`)."""
 
+from pathlib import Path
 from synaptik.nof1.pipeline import (
     ActionabilityTier,
     Nof1PatientCase,
@@ -135,7 +136,19 @@ def run_tests():
     check("markdown dossier contains Francesco Nobile citation and ORCID", "Nobile" in md and "0009-0001-9477-3332" in md)
 
     # ------------------------------------------------------------------
-    # 5. CLI workflow and handler smoke test
+    # 5. FDA Pre-IND Briefing Document generation
+    # ------------------------------------------------------------------
+    print("\n[n-of-1: fda pre-ind package]")
+    from synaptik.nof1.pipeline import generate_fda_pre_ind_package
+    preind_doc = generate_fda_pre_ind_package(dossier)
+    check("pre-ind contains 21 CFR Part 312 reference", "21 CFR Part 312" in preind_doc)
+    check("pre-ind contains Type B meeting request", "Type B" in preind_doc)
+    check("pre-ind contains CMC specifications", "Chemical, Manufacturing, and Controls" in preind_doc)
+    check("pre-ind contains Specific Questions for FDA", "Specific Questions for the Food and Drug Administration" in preind_doc)
+    check("pre-ind contains author Francesco Nobile with ORCID", "Francesco Nobile" in preind_doc and "0009-0001-9477-3332" in preind_doc)
+
+    # ------------------------------------------------------------------
+    # 6. CLI workflow and handler smoke test
     # ------------------------------------------------------------------
     print("\n[n-of-1: cli handler]")
     from synaptik.cli.commands.nof1 import cmd_nof1
@@ -144,6 +157,25 @@ def run_tests():
 
     ret_json = cmd_nof1(MockArgs(json=True))
     check("cmd_nof1 --json returns 0", ret_json == 0)
+
+    # Test CLI with VCF input
+    vcf_example = Path(__file__).parent.parent / "examples" / "patient_stmn2_wgs.vcf"
+    class MockVcfArgs:
+        def __init__(self):
+            self.vcf = str(vcf_example)
+            self.gene = None
+            self.patient = "PATIENT-VCF-TEST"
+            self.disease = "als"
+            self.variant = "cryptic"
+            self.sequence = None
+            self.nfl = 65.0
+            self.div = 28
+            self.dossier = None
+            self.pre_ind = None
+            self.svg = None
+            self.json = True
+    ret_vcf = cmd_nof1(MockVcfArgs())
+    check("cmd_nof1 auto-extracting from --vcf returns 0", ret_vcf == 0)
 
     print("\n" + "=" * 70)
     print("ALL N-OF-1 PIPELINE TESTS PASSED")

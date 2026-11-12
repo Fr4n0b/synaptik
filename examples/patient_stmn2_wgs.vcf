@@ -1,0 +1,13 @@
+##fileformat=VCFv4.2
+##source=SYNAPTIK_Simulated_Patient_Sequencing
+##reference=GRCh38
+##INFO=<ID=GENE,Number=1,Type=String,Description="Target gene symbol">
+##INFO=<ID=CLNSIG,Number=1,Type=String,Description="ClinVar clinical significance">
+##INFO=<ID=gnomAD_AF,Number=1,Type=Float,Description="gnomAD population allele frequency">
+##INFO=<ID=CADD_PHRED,Number=1,Type=Float,Description="CADD Phred pathogenicity score">
+##INFO=<ID=SpliceAI,Number=.,Type=String,Description="SpliceAI prediction format: ALLELE|SYMBOL|DS_AG|DS_AL|DS_DG|DS_DL|DP_AG|DP_AL|DP_DG|DP_DL">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO
+chr8	79616822	rs183204964	C	T	99.0	PASS	GENE=STMN2;CLNSIG=Pathogenic;gnomAD_AF=0.00002;CADD_PHRED=26.4;SpliceAI=T|STMN2|0.88|0.01|0.02|0.00|12|-4|0|0
+chr19	17642414	rs12608932	A	C	99.0	PASS	GENE=UNC13A;CLNSIG=Pathogenic;gnomAD_AF=0.00015;CADD_PHRED=24.1;SpliceAI=C|UNC13A|0.12|0.00|0.82|0.01|-5|0|18|0
+chr5	70951950	rs121909192	C	T	99.0	PASS	GENE=SMN2;CLNSIG=Pathogenic;gnomAD_AF=0.00001;CADD_PHRED=28.2;SpliceAI=T|SMN2|0.05|0.92|0.01|0.00|0|-22|0|0
+chr2	10000000	rs99999999	G	A	45.0	PASS	GENE=NOT_TARGET;CLNSIG=Benign;gnomAD_AF=0.45;CADD_PHRED=2.1;SpliceAI=A|NOT_TARGET|0.01|0.01|0.00|0.00|0|0|0|0

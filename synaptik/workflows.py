@@ -475,3 +475,93 @@ def run_nof1_workflow(
     return nof1_dossier_to_dict(dossier), nof1_dossier_to_markdown(dossier)
 
 
+def run_preind_workflow(
+    patient_id: str,
+    target_gene: str,
+    disease: str = "als",
+    variant_id: str = "cryptic_splice_variant",
+    target_sequence: str | None = None,
+    baseline_nfl: float = 65.0,
+    cell_model: str = "ipsc_motor_neuron",
+    div: int = 28,
+) -> str:
+    """Execute N-of-1 pipeline and format complete FDA Pre-IND Briefing Document (21 CFR Part 312)."""
+    from .nof1.pipeline import Nof1PatientCase, generate_fda_pre_ind_package, run_nof1_pipeline
+    case = Nof1PatientCase(
+        patient_id=patient_id,
+        target_gene=target_gene,
+        disease=disease,
+        variant_id=variant_id,
+        target_sequence=target_sequence,
+        baseline_nfl_pg_ml=baseline_nfl,
+        cell_model=cell_model,
+        maturity_div=div,
+    )
+    dossier = run_nof1_pipeline(case)
+    return generate_fda_pre_ind_package(dossier)
+
+
+def run_vcf_prioritization_workflow(
+    vcf_path_or_content: str,
+    target_gene: str | None = None,
+    min_splice_score: float = 0.20,
+) -> dict:
+    """Parse patient VCF and return prioritized actionable cryptic splice candidates."""
+    from pathlib import Path
+    from .sequence.vcf import PatientVCFParser, variant_to_dict
+
+    targets = [target_gene.upper()] if target_gene else None
+    parser = PatientVCFParser(target_genes=targets)
+
+    p = Path(vcf_path_or_content)
+    if p.exists() and p.is_file():
+        variants = parser.parse_file(p)
+    else:
+        variants = parser.parse_vcf_content(vcf_path_or_content)
+
+    prioritized = parser.prioritize_actionable_variants(variants, min_splice_score=min_splice_score)
+    return {
+        "total_variants": len(variants),
+        "actionable_candidates_count": len(prioritized),
+        "candidates": [variant_to_dict(v) for v in prioritized],
+    }
+
+
+def run_drug_repurposing_workflow(
+    target_gene: str,
+    required_direction: str = "activator",
+    min_clinical_phase: int = 0,
+    bbb_only: bool = False,
+) -> list[dict]:
+    """Identify and rank brain-penetrant small-molecule drugs for target."""
+    from .drug.repurposing_catalog import (
+        repurposed_compound_to_dict,
+        screen_repurposing_candidates,
+    )
+    cands = screen_repurposing_candidates(
+        target_gene=target_gene,
+        required_direction=required_direction,
+        min_clinical_phase=min_clinical_phase,
+        bbb_only=bbb_only,
+    )
+    return [repurposed_compound_to_dict(c) for c in cands]
+
+
+def generate_splicing_svg_workflow(
+    gene_symbol: str = "STMN2",
+    lead_aso_sequence: str | None = None,
+    delta_psi_pct: float = 85.0,
+) -> str:
+    """Generate high-resolution SVG diagram for pre-mRNA splicing and ASO footprint."""
+    from .sequence.visualize import SplicingDiagramConfig, generate_splicing_architecture_svg
+
+    cfg = SplicingDiagramConfig(
+        gene_symbol=gene_symbol.upper(),
+        delta_psi_pct=delta_psi_pct,
+    )
+    if lead_aso_sequence:
+        cfg.lead_aso_sequence = lead_aso_sequence
+    return generate_splicing_architecture_svg(cfg)
+
+
+

@@ -117,7 +117,11 @@ says why.
   healthy populations)
 
 ### Splicing and therapeutics
-- **Autonomous N-of-1 Rare Disease & Translational Pipeline** (`synaptik nof1`): an end-to-end autonomous translational engine that takes a patient variant, resolves the cryptic splice mechanism, verifies post-mortem human brain snRNA-seq concordance, designs lead clinical ASO candidates with biophysical liability clearance, simulates counterfactual transcriptomic rescue, models longitudinal plasma NfL biomarker suppression over 48 weeks, pre-registers a randomized complete block preclinical protocol (SHA-256 fingerprint), and exports an IND-enabling preclinical dossier cited to Francesco Nobile.
+- **Autonomous N-of-1 Rare Disease & Translational Pipeline** (`synaptik nof1`): an end-to-end autonomous translational engine that takes a patient variant, resolves the cryptic splice mechanism, verifies post-mortem human brain snRNA-seq concordance, designs lead clinical ASO candidates with biophysical liability clearance, simulates counterfactual transcriptomic rescue, models longitudinal plasma NfL biomarker suppression over 48 weeks, pre-registers a randomized complete block preclinical protocol (SHA-256 fingerprint), exports an IND-enabling preclinical dossier, and formats complete FDA Pre-IND Meeting Briefing Documents (21 CFR Part 312 compliant).
+- **Direct Patient Genomic VCF Ingestion & Splice Prioritization** (`synaptik vcf` & `synaptik nof1 --vcf`): stream and parse standard VCF (v4.2 / v4.3) files from patient whole-genome (WGS) or exome (WES) sequencing, prioritizes rare cryptic splice variants across hallmark neurodegenerative targets (*STMN2*, *UNC13A*, *SMN2*, *ELP1*, *COL6A1*, *ATXN2*, *TARDBP*, *SOD1*, *FUS*), integrates ClinVar and SpliceAI delta scores, and auto-initiates N-of-1 therapeutic design.
+- **Small-Molecule Drug Repurposing & CNS Tractability Engine** (`synaptik repurpose`): screens approved and clinical-stage brain-penetrant small-molecule drugs with physicochemical CNS Multiparameter Optimization (CNS MPO, 0–6 scale), blood-brain barrier penetrance, directional MoA compatibility (activator vs inhibitor), and in silico transcriptomic rescue predictions.
+- **Publication-Grade Splicing & ASO Architecture Vector Visualizer** (`--svg <PATH.svg>`): generates scalable vector graphics (SVG) rendering pre-mRNA loci, canonical and cryptic exons, donor/acceptor splice sites, sashimi-style splicing arcs with $\Delta\Psi$, and tiled 18-mer ASO steric-blocker footprints.
+- **FDA Pre-IND Meeting Package Generator** (`synaptik nof1 --pre-ind <PATH.md>`): produces an exhaustive 10-section regulatory briefing document for FDA CDER/CBER Type B Pre-IND meetings.
 - RBP regulator inference (TDP-43, PTBP1/2, RBFOX, SR proteins, and others) with
   motif scanning
 - dPSI sign normalization across rMATS, MAJIQ, and RT-PCR, with conflicts flagged
@@ -367,7 +371,7 @@ on output:
   report.** Design briefs show a range of assumed CVs; supply your own with
   `--cv` for a real estimate, and use `--rho` for paired isogenic designs.
 
-The test suite (342 checks across 7 suites) encodes the properties that make output
+The test suite (478 checks across 13 suites) encodes the properties that make output
 trustworthy. If it fails, the output should not be used.
 
 ---
@@ -430,10 +434,10 @@ propose larger changes.
 If you use SYNAPTIK in your research, grant proposals, computational drug discovery, or preclinical studies, please cite:
 
 **APA (7th edition):**
-> Nobile, F. (2026). *SYNAPTIK: Evidence-structure analysis for iPSC-neuron research* (Version 0.7.0). Massachusetts General Hospital / Harvard Medical School; University of Pavia. https://github.com/Fr4n0b/synaptik. ORCID: [0009-0001-9477-3332](https://orcid.org/0009-0001-9477-3332).
+> Nobile, F. (2026). *SYNAPTIK: Evidence-structure analysis for iPSC-neuron research* (Version 0.8.0). Massachusetts General Hospital / Harvard Medical School; University of Pavia. https://github.com/Fr4n0b/synaptik. ORCID: [0009-0001-9477-3332](https://orcid.org/0009-0001-9477-3332).
 
 **Nature / Vancouver:**
-> Nobile F. SYNAPTIK: Evidence-structure analysis for iPSC-neuron research. v0.7.0 (2026). https://github.com/Fr4n0b/synaptik (ORCID: [0009-0001-9477-3332](https://orcid.org/0009-0001-9477-3332)).
+> Nobile F. SYNAPTIK: Evidence-structure analysis for iPSC-neuron research. v0.8.0 (2026). https://github.com/Fr4n0b/synaptik (ORCID: [0009-0001-9477-3332](https://orcid.org/0009-0001-9477-3332)).
 
 **BibTeX:**
 ```bibtex
@@ -441,7 +445,7 @@ If you use SYNAPTIK in your research, grant proposals, computational drug discov
   author       = {Nobile, Francesco},
   title        = {{SYNAPTIK: Evidence-structure analysis for iPSC-neuron research}},
   year         = {2026},
-  version      = {0.7.0},
+  version      = {0.8.0},
   url          = {https://github.com/Fr4n0b/synaptik},
   note         = {ORCID: https://orcid.org/0009-0001-9477-3332},
   organization = {Center for Genomic Medicine, Massachusetts General Hospital / Harvard Medical School}

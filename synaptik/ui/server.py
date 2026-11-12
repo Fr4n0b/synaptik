@@ -12,7 +12,7 @@ import logging
 import os
 from pathlib import Path
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, Response, jsonify, request, send_from_directory
 
 from ..analyst import Analyst
 from ..drug.repurposing import ChEMBLClient, OpenTargetsClient, RepurposingEngine
@@ -399,6 +399,75 @@ def create_app(db_path: str, enable_drugs: bool = False,
         rho = float(body.get("rho") or 0.75)
         from ..workflows import generate_study_protocol
         return jsonify(generate_study_protocol(target_gene=target, disease=disease, cell_model=cell_model, maturity_div=div, paired_n=pairs, rho=rho))
+
+    @app.route("/api/vcf", methods=["POST"])
+    def api_vcf():
+        # Supports JSON payload { "vcf_text": "...", "target": "..." } or multipart form upload
+        body = request.get_json(force=True, silent=True) or {}
+        vcf_text = body.get("vcf_text")
+        target_gene = body.get("target") or request.form.get("target") or None
+
+        if not vcf_text:
+            name, text = _uploaded_text()
+            vcf_text = text
+
+        if not vcf_text:
+            return jsonify({"error": "Provide VCF text or upload a VCF file"}), 400
+
+        from ..workflows import run_vcf_prioritization_workflow
+        res = run_vcf_prioritization_workflow(vcf_text, target_gene=target_gene)
+        return jsonify(res)
+
+    @app.route("/api/repurpose", methods=["POST"])
+    def api_repurpose():
+        body = request.get_json(force=True, silent=True) or {}
+        target = (body.get("target") or "STMN2").strip().upper()
+        direction = (body.get("direction") or "activator").strip().lower()
+        min_phase = int(body.get("min_phase") or 0)
+        bbb_only = bool(body.get("bbb_only") or False)
+
+        from ..workflows import run_drug_repurposing_workflow
+        cands = run_drug_repurposing_workflow(
+            target_gene=target,
+            required_direction=direction,
+            min_clinical_phase=min_phase,
+            bbb_only=bbb_only,
+        )
+        return jsonify({"target": target, "direction": direction, "candidates": cands})
+
+    @app.route("/api/visualize/splicing", methods=["GET", "POST"])
+    def api_visualize_splicing():
+        body = request.get_json(force=True, silent=True) or {}
+        gene = (request.args.get("gene") or body.get("gene") or "STMN2").strip().upper()
+        lead_aso = request.args.get("aso") or body.get("lead_aso_sequence") or None
+        delta_psi = float(request.args.get("delta_psi") or body.get("delta_psi") or 85.0)
+
+        from ..workflows import generate_splicing_svg_workflow
+        svg_xml = generate_splicing_svg_workflow(gene_symbol=gene, lead_aso_sequence=lead_aso, delta_psi_pct=delta_psi)
+        return Response(svg_xml, mimetype="image/svg+xml")
+
+    @app.route("/api/nof1/preind", methods=["POST"])
+    def api_nof1_preind():
+        body = request.get_json(force=True, silent=True) or {}
+        gene = (body.get("gene") or "STMN2").strip().upper()
+        patient = (body.get("patient") or "PATIENT-N1").strip()
+        disease = (body.get("disease") or "als").strip().lower()
+        variant = (body.get("variant") or "cryptic_splice_variant").strip()
+        seq = body.get("sequence") or None
+        nfl = float(body.get("nfl") or 65.0)
+        div = int(body.get("div") or 28)
+
+        from ..workflows import run_preind_workflow
+        preind_md = run_preind_workflow(
+            patient_id=patient,
+            target_gene=gene,
+            disease=disease,
+            variant_id=variant,
+            target_sequence=seq,
+            baseline_nfl=nfl,
+            div=div,
+        )
+        return jsonify({"gene": gene, "patient": patient, "markdown": preind_md})
 
     @app.route("/api/cite", methods=["GET", "POST"])
     def api_cite():

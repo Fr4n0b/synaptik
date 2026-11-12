@@ -92,6 +92,20 @@ def cmd_aso(args) -> int:
         except OSError as e:
             print(Fmt.red(f"Failed to export: {e}"))
 
+    if getattr(args, "svg", None) and res.candidates:
+        from ...sequence.visualize import SplicingDiagramConfig, export_splicing_architecture_svg
+        cfg = SplicingDiagramConfig(
+            gene_symbol=gene or "Target",
+            lead_aso_sequence=lead.oligo_sequence_5_to_3,
+            melting_temp_c=lead.melting_temp_c,
+        )
+        try:
+            export_splicing_architecture_svg(cfg, args.svg)
+            print()
+            print(Fmt.green(f"Exported publication-grade SVG splicing diagram to {args.svg}"))
+        except OSError as e:
+            print(Fmt.red(f"Failed to export SVG diagram: {e}"))
+
     print("\n" + "-" * 78)
     print("Cite: Francesco Nobile (ORCID: 0009-0001-9477-3332); run 'synaptik cite'")
     return 0
@@ -110,5 +124,6 @@ def register(sub, common) -> None:
     s.add_argument("--region", help="description of target region (e.g. 'cryptic donor', 'exon 7 ISS')")
     s.add_argument("--top", type=int, default=3, help="number of top candidate ASOs to display (default: 3)")
     s.add_argument("--export", metavar="PATH", help="export candidates to CSV file")
+    s.add_argument("--svg", metavar="PATH", help="export publication-grade SVG splicing and ASO architecture diagram")
     s.add_argument("--json", action="store_true", help="output candidate specifications as JSON")
     s.set_defaults(func=cmd_aso)

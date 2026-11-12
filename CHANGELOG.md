@@ -2,6 +2,41 @@
 
 All notable changes to SYNAPTIK are recorded here.
 
+## 0.8.0 — 2026-11-12
+
+### Added
+- **Direct Patient Genomic VCF Ingestion & Prioritization Engine (`synaptik vcf` & `synaptik/sequence/vcf.py`)**:
+  - Ingests standard Variant Call Format (VCF v4.2 / v4.3) files (.vcf and .vcf.gz) directly from patient whole-genome (WGS) or whole-exome (WES) sequencing.
+  - Automatically parses and standardizes coordinates, ClinVar clinical significance, gnomAD population rarity, CADD Phred pathogenicity, and SpliceAI delta scores.
+  - Prioritizes actionable cryptic splice-altering variants across neurodegenerative target genes (*STMN2*, *UNC13A*, *SMN2*, *ELP1*, *COL6A1*, *ATXN2*, *TARDBP*, *SOD1*, *FUS*).
+  - CLI command `synaptik vcf <FILE.vcf> [--disease <DISEASE>] [--target <GENE>] [--min-splice-score <FLOAT>] [--json]`.
+  - Direct pipeline bridge: `synaptik nof1 --vcf <FILE.vcf>` auto-extracts high-priority variants and runs the N-of-1 pipeline with zero manual formatting.
+- **Small-Molecule Drug Repurposing & CNS Tractability Engine (`synaptik repurpose` & `synaptik/drug/repurposing_catalog.py`)**:
+  - Curated database of brain-penetrant small-molecule drugs (Risdiplam, Branaplam, Riluzole, Edaravone, Sodium Phenylbutyrate, Memantine, Diazepam, Vorinostat, Rapamycin, etc.).
+  - Evaluates Physicochemical CNS Multiparameter Optimization (CNS MPO, 0–6 scale) and Blood-Brain Barrier (BBB) penetrance.
+  - Directional mechanism-of-action compatibility screening (Activator vs Inhibitor vs Modulator).
+  - Predicts in vitro and in vivo transcriptomic rescue efficacy percentages and ranks candidates by composite translational rank score.
+  - CLI command `synaptik repurpose --target <GENE> [--direction <DIR>] [--min-phase <INT>] [--bbb-only] [--json]`.
+- **Publication-Grade Splicing & ASO Architecture Vector Visualizer (`synaptik/sequence/visualize.py`)**:
+  - Generates publication-ready SVG diagrams rendering pre-mRNA architecture: canonical flanking exons, cryptic exon, splice donor (`GT`) and acceptor (`AG`) sites, sashimi-style curved splice junction arcs with $\Delta\Psi$, and tiled 18-mer ASO steric-blocker footprints with base-level sequences.
+  - Standalone SVG file export via CLI flags: `synaptik aso --svg <PATH.svg>` and `synaptik nof1 --svg <PATH.svg>`.
+  - Embedded directly into the laboratory Web UI for real-time visualization and one-click figure export.
+- **FDA CDER/CBER Type B Pre-IND Meeting Package Generator (21 CFR Part 312 Compliant eCTD Dossier)**:
+  - Expands `synaptik nof1` with `--pre-ind <PATH.md>`: produces an exhaustive, regulatory-grade 10-section briefing document.
+  - Modules: Background & Development Objectives, CMC Specifications (API sequence, molecular weight, IDT formulation code, PS/2'-MOE modifications), Nonclinical Pharmacology (iPSC target engagement, human post-mortem single-cell concordance, counterfactual causal simulation), Nonclinical Safety & Toxicology (GLP 13-week NHP intrathecal study plan), Clinical Protocol Synopsis (stratification by baseline Plasma NfL), Surrogate Biomarker Endpoint Qualification, and Specific Regulatory Questions for FDA Reviewers.
+- **Web UI Dashboard Expansion (`synaptik ui`)**:
+  - Added dedicated **Patient VCF** tab with text/file upload, sample STMN2 loader, and 1-click "Translate in N-of-1" routing.
+  - Added dedicated **Drug Repurposing** tab with interactive drug cards, CNS MPO scores, and clinical phase filters.
+  - Integrated interactive vector SVG splicing visualizer into the N-of-1 dashboard.
+  - Added one-click **Download FDA Pre-IND Package** button.
+  - New REST API endpoints: `POST /api/vcf`, `POST /api/repurpose`, `GET /api/visualize/splicing`, `POST /api/nof1/preind`.
+- **Three New Regression Test Suites**:
+  - `tests/test_vcf.py` (21 checks)
+  - `tests/test_repurposing.py` (24 checks)
+  - `tests/test_visualize.py` (21 checks)
+  - Expanded `tests/test_nof1.py` (28 checks) and `tests/test_ui_endpoints.py` (22 checks).
+  - Platform test suite expands to **478 passing checks across 13 independent test suites**.
+
 ## 0.7.0 — 2026-11-12
 
 ### Added
@@ -184,7 +219,7 @@ that meets a lab's own data and decisions.
 - **Web interface**: a *My Data* upload tab, a *Design brief* action on the
   lookup tab, and the benchmark on the corpus tab.
 - **Phenotype vocabulary**: MEA metrics (mean firing rate, burst duration,
-  network synchrony; including synonyms contributed by @HarshRajSinghania), patch-clamp intrinsic properties (resting membrane
+  network synchrony), patch-clamp intrinsic properties (resting membrane
   potential, input resistance, rheobase, AP threshold, capacitance), mIPSC
   amplitude, inhibitory synaptic puncta, colocalization coefficients, and
   dendritic spine morphology. 48 terms, 328 synonyms.

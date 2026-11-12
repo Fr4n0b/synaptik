@@ -112,6 +112,37 @@ def run_tests():
     data = res.get_json()
     check("/api/protocol returns SHA-256 fingerprint", len(data["protocol_fingerprint_sha256"]) == 64)
 
+    # 8. /api/vcf endpoint
+    print("\n[/api/vcf]")
+    sample_vcf_str = "##fileformat=VCFv4.2\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\nchr8\t79616822\trs1\tC\tT\t99\tPASS\tGENE=STMN2;CLNSIG=Pathogenic;SpliceAI=T|STMN2|0.85|0.0|0.0|0.0|0|0|0|0"
+    res = client.post("/api/vcf", json={"vcf_text": sample_vcf_str})
+    check("/api/vcf returns 200 OK", res.status_code == 200)
+    data = res.get_json()
+    check("/api/vcf returns candidates list", "candidates" in data and len(data["candidates"]) == 1)
+    check("/api/vcf candidate is STMN2", data["candidates"][0]["gene_symbol"] == "STMN2")
+
+    # 9. /api/repurpose endpoint
+    print("\n[/api/repurpose]")
+    res = client.post("/api/repurpose", json={"target": "STMN2", "direction": "activator", "bbb_only": True})
+    check("/api/repurpose returns 200 OK", res.status_code == 200)
+    data = res.get_json()
+    check("/api/repurpose returns candidates", "candidates" in data and len(data["candidates"]) > 0)
+    check("/api/repurpose candidates are BBB penetrant", data["candidates"][0]["bbb_plausible"] is True)
+
+    # 10. /api/visualize/splicing endpoint
+    print("\n[/api/visualize/splicing]")
+    res = client.get("/api/visualize/splicing?gene=STMN2&aso=CTGAATACTCACCTGAAA")
+    check("/api/visualize/splicing returns 200 OK", res.status_code == 200)
+    check("/api/visualize/splicing mimetype is image/svg+xml", res.mimetype == "image/svg+xml")
+    check("/api/visualize/splicing contains SVG root", b"<svg" in res.data)
+
+    # 11. /api/nof1/preind endpoint
+    print("\n[/api/nof1/preind]")
+    res = client.post("/api/nof1/preind", json={"gene": "STMN2", "patient": "PATIENT-01"})
+    check("/api/nof1/preind returns 200 OK", res.status_code == 200)
+    data = res.get_json()
+    check("/api/nof1/preind returns markdown", "markdown" in data and "21 CFR Part 312" in data["markdown"])
+
     td.cleanup()
     print("\n" + "=" * 70)
     print("ALL UI ENDPOINT TESTS PASSED")

@@ -5,14 +5,39 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from ..main import Fmt, header
-from ...workflows import run_nof1_workflow
+from ...sequence.visualize import SplicingDiagramConfig, export_splicing_architecture_svg
+from ...sequence.vcf import PatientVCFParser
+from ...workflows import run_nof1_workflow, run_preind_workflow
 
 
 def cmd_nof1(args) -> int:
-    gene = args.gene.strip().upper()
+    gene = getattr(args, "gene", None)
+    vcf_file = getattr(args, "vcf", None)
+    variant = getattr(args, "variant", "cryptic_splice_variant")
+
+    # If VCF provided and gene omitted, auto-prioritize from VCF
+    if vcf_file:
+        vcf_p = Path(vcf_file)
+        if not vcf_p.exists():
+            print(f"Error: VCF file not found at {vcf_p}")
+            return 1
+        parser = PatientVCFParser()
+        variants = parser.parse_file(vcf_p)
+        prioritized = parser.prioritize_actionable_variants(variants)
+        if prioritized:
+            top_v = prioritized[0]
+            if not gene:
+                gene = top_v.gene_symbol
+            variant = top_v.variant_id
+            print(f"  * Auto-detected high-priority variant from VCF: {top_v.variant_id} in {top_v.gene_symbol}")
+
+    if not gene:
+        print("Error: --gene is required unless a valid --vcf containing recognized targets is provided.")
+        return 1
+
+    gene = gene.strip().upper()
     patient = getattr(args, "patient", None) or "PATIENT-N1"
     disease = getattr(args, "disease", "als")
-    variant = getattr(args, "variant", "cryptic_splice_variant")
     seq = getattr(args, "sequence", None)
     nfl = getattr(args, "nfl", 65.0)
     div = getattr(args, "div", 28)
@@ -38,6 +63,37 @@ def cmd_nof1(args) -> int:
             print(Fmt.green(f"Exported IND-enabling preclinical dossier to {out_path}"))
         except OSError as e:
             print(Fmt.red(f"Failed to export dossier: {e}"))
+
+    if getattr(args, "pre_ind", None):
+        preind_path = Path(args.pre_ind)
+        preind_md = run_preind_workflow(
+            patient_id=patient,
+            target_gene=gene,
+            disease=disease,
+            variant_id=variant,
+            target_sequence=seq,
+            baseline_nfl=nfl,
+            div=div,
+        )
+        try:
+            preind_path.write_text(preind_md, encoding="utf-8")
+            print(Fmt.green(f"Exported FDA Pre-IND Meeting Package (21 CFR Part 312) to {preind_path}"))
+        except OSError as e:
+            print(Fmt.red(f"Failed to export Pre-IND document: {e}"))
+
+    if getattr(args, "svg", None):
+        svg_path = Path(args.svg)
+        lead_aso = dossier_dict["stage3_therapeutic_aso"]["lead_oligo_sequence"]
+        cfg = SplicingDiagramConfig(
+            gene_symbol=gene,
+            lead_aso_sequence=lead_aso,
+            melting_temp_c=dossier_dict["stage3_therapeutic_aso"]["melting_temp_c"],
+        )
+        try:
+            export_splicing_architecture_svg(cfg, svg_path)
+            print(Fmt.green(f"Exported publication-grade SVG splicing diagram to {svg_path}"))
+        except OSError as e:
+            print(Fmt.red(f"Failed to export SVG diagram: {e}"))
 
     tier_str = dossier_dict["actionability_tier"]
     if "Tier 1" in tier_str:
@@ -107,8 +163,10 @@ def register(sub, common) -> None:
         "nof1", parents=[common],
         help="autonomous N-of-1 rare disease & translational therapeutics pipeline",
     )
-    s.add_argument("--gene", required=True, metavar="GENE",
-                   help="target gene symbol (e.g. STMN2, UNC13A, ATXN2, SOD1, SCN2A)")
+    s.add_argument("--gene", metavar="GENE",
+                   help="target gene symbol (e.g. STMN2, UNC13A, ATXN2, SOD1, SCN2A; auto-extracted if --vcf provided)")
+    s.add_argument("--vcf", metavar="PATH",
+                   help="patient genomic VCF file (.vcf or .vcf.gz) to prioritize variants from")
     s.add_argument("--patient", default="PATIENT-N1",
                    help="patient or cohort identifier (default: PATIENT-N1)")
     s.add_argument("--disease", choices=["als", "ftd", "ad"], default="als",
@@ -123,5 +181,9 @@ def register(sub, common) -> None:
                    help="in vitro neuronal maturity DIV (default: 28)")
     s.add_argument("--dossier", metavar="PATH",
                    help="file path to export full IND-enabling preclinical dossier in Markdown")
+    s.add_argument("--pre-ind", metavar="PATH",
+                   help="file path to export complete FDA CDER/CBER Type B Pre-IND Meeting Package")
+    s.add_argument("--svg", metavar="PATH",
+                   help="file path to export publication-grade SVG pre-mRNA and ASO binding diagram")
     s.add_argument("--json", action="store_true", help="output complete dossier as JSON")
     s.set_defaults(func=cmd_nof1)

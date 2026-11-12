@@ -40,6 +40,18 @@ echo "=== autonomous N-of-1 translational pipeline suite ==="
 python3 -m tests.test_nof1
 
 echo
+echo "=== patient genomic VCF splice prioritization suite ==="
+python3 -m tests.test_vcf
+
+echo
+echo "=== small-molecule drug repurposing & CNS tractability suite ==="
+python3 -m tests.test_repurposing
+
+echo
+echo "=== publication-grade splicing & ASO vector visualizer suite ==="
+python3 -m tests.test_visualize
+
+echo
 echo "=== web interface HTTP endpoints suite ==="
 python3 -m tests.test_ui_endpoints
 
@@ -74,6 +86,8 @@ for cmd in \
   "cite" \
   "cite --bibtex" \
   "cite --apa" \
+  "vcf examples/patient_stmn2_wgs.vcf" \
+  "repurpose --target STMN2 --direction activator" \
   "nof1 --gene STMN2 --patient ALS-001" \
   "contracts --self-test"
 do
@@ -102,6 +116,8 @@ for cmd in \
   "protocol --target STMN2 --disease als --pairs 8" \
   "protocol --meta-analysis examples/multisite_stmn2.json" \
   "cite" \
+  "vcf examples/patient_stmn2_wgs.vcf" \
+  "repurpose --target STMN2 --direction activator" \
   "nof1 --gene STMN2 --patient ALS-001"
 do
   eval "python3 -m synaptik.cli.main $cmd --db '$TMPDB' --json" \
