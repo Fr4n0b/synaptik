@@ -268,7 +268,9 @@ h3.sec{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform
   <button class="tab" role="tab" aria-selected="false" data-panel="lookup">Lookup &amp; Design</button>
   <button class="tab" role="tab" aria-selected="false" data-panel="splicing">Splicing</button>
   <button class="tab" role="tab" aria-selected="false" data-panel="compare">Cross-check</button>
+  <button class="tab" role="tab" aria-selected="false" data-panel="nof1">N-of-1 Pipeline</button>
   <button class="tab" role="tab" aria-selected="false" data-panel="corpus">Corpus</button>
+  <button class="tab" role="tab" aria-selected="false" data-panel="cite">Cite &amp; Credit</button>
 </nav>
 
 <main>
@@ -409,6 +411,78 @@ h3.sec{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform
   <div id="cpOut"><div class="loading">loading…</div></div>
 </section>
 
+<!-- ================= N-OF-1 PIPELINE ================= -->
+<section class="panel" id="panel-nof1">
+  <div class="query-bar">
+    <div class="field-grid">
+      <div>
+        <label for="nof1Patient">Patient / Cohort ID</label>
+        <input id="nof1Patient" value="PATIENT-N1" placeholder="e.g. PATIENT-ALS-042">
+      </div>
+      <div>
+        <label for="nof1Gene">Target Gene</label>
+        <input id="nof1Gene" value="STMN2" placeholder="e.g. STMN2, UNC13A, ATXN2, SOD1">
+      </div>
+      <div>
+        <label for="nof1Disease">Disease Indication</label>
+        <select id="nof1Disease">
+          <option value="als" selected>ALS (Amyotrophic Lateral Sclerosis)</option>
+          <option value="ftd">FTD (Frontotemporal Dementia)</option>
+          <option value="ad">AD (Alzheimer's Disease)</option>
+        </select>
+      </div>
+      <div>
+        <label for="nof1Variant">Variant / Aberration</label>
+        <input id="nof1Variant" value="cryptic_exon_2a_activation" placeholder="e.g. cryptic_donor_variant">
+      </div>
+      <div>
+        <label for="nof1Nfl">Baseline Plasma NfL (pg/mL)</label>
+        <input id="nof1Nfl" type="number" step="0.1" value="65.0" placeholder="e.g. 65.0">
+      </div>
+      <div>
+        <label for="nof1Div">Neuronal Maturity (DIV)</label>
+        <input id="nof1Div" type="number" value="28" placeholder="28">
+      </div>
+    </div>
+    <div class="actions">
+      <button class="run" id="btnRunNof1">Run Autonomous Pipeline</button>
+      <span class="hint">Chains variant impact, human snRNA-seq concordance, in silico ASO synthesis, counterfactual simulation, fluid biomarker kinetics, and pre-registered protocol.</span>
+    </div>
+  </div>
+  <div id="nof1Out">
+    <div class="empty">Enter patient genomics to generate an end-to-end preclinical IND dossier.</div>
+  </div>
+</section>
+
+<!-- ================= CITATION & ATTRIBUTION ================= -->
+<section class="panel" id="panel-cite">
+  <div class="query-bar">
+    <div style="max-width:760px">
+      <h2 style="font-family:var(--mono);font-size:16px;color:var(--ch-green);margin:0 0 8px 0">How to Cite SYNAPTIK</h2>
+      <p style="color:var(--text-dim);font-size:13px;line-height:1.6;margin:0 0 12px 0">
+        If you use SYNAPTIK in academic research, grant proposals, computational drug discovery, or clinical trial design, please cite lead author <b>Francesco Nobile</b> and this platform.
+      </p>
+      <div style="background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:12px 16px;margin-bottom:16px;display:flex;gap:20px;align-items:center;flex-wrap:wrap">
+        <div>
+          <div style="color:var(--text-faint);font-size:11px;text-transform:uppercase;font-family:var(--mono)">Lead Author</div>
+          <div style="font-weight:600;font-size:14px;color:var(--text)">Francesco Nobile</div>
+        </div>
+        <div>
+          <div style="color:var(--text-faint);font-size:11px;text-transform:uppercase;font-family:var(--mono)">Verified ORCID</div>
+          <div><a href="https://orcid.org/0009-0001-9477-3332" target="_blank" rel="noopener" style="font-family:var(--mono);color:var(--ch-green)">0009-0001-9477-3332 ↗</a></div>
+        </div>
+        <div>
+          <div style="color:var(--text-faint);font-size:11px;text-transform:uppercase;font-family:var(--mono)">Affiliation</div>
+          <div style="color:var(--text-dim);font-size:12px">Center for Genomic Medicine, MGH / Harvard Medical School &amp; Univ of Pavia</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="citeOut" style="padding:16px 24px">
+    <div class="loading">loading citation formats…</div>
+  </div>
+</section>
+
 </main>
 
 <script>
@@ -442,6 +516,7 @@ document.querySelectorAll('.tab').forEach(t=>{
     t.setAttribute('aria-selected','true');
     $('#panel-'+t.dataset.panel).classList.add('active');
     if(t.dataset.panel==='corpus') loadCorpus();
+    if(t.dataset.panel==='cite') loadCite();
   });
 });
 
@@ -1019,6 +1094,195 @@ async function loadCorpus(){
     });
   }catch(e){ showError(out,e); }
 }
+
+/* ---------- citation panel ---------- */
+async function loadCite(){
+  const out = $('#citeOut');
+  showLoading(out, 'loading citation metadata…');
+  try{
+    const d = await api('/api/cite', {});
+    out.innerHTML = '';
+
+    const block = (title, text, isCode=false) => {
+      const wrap = el('div', null);
+      wrap.style.marginBottom = '20px';
+      const h = el('h4', null, title);
+      h.style.color = 'var(--text)';
+      h.style.margin = '0 0 6px 0';
+      h.style.fontFamily = 'var(--sans)';
+      wrap.appendChild(h);
+
+      const box = el('div', null);
+      box.style.display = 'flex';
+      box.style.gap = '10px';
+      box.style.alignItems = 'flex-start';
+
+      const content = el('div', null, text);
+      content.style.flex = '1';
+      content.style.padding = '10px 14px';
+      content.style.background = 'var(--panel)';
+      content.style.border = '1px solid var(--line)';
+      content.style.borderRadius = '4px';
+      content.style.fontSize = isCode ? '12px' : '13px';
+      if(isCode) content.style.fontFamily = 'var(--mono)';
+      if(isCode) content.style.whiteSpace = 'pre-wrap';
+
+      const btn = el('button', 'ghost', 'Copy');
+      btn.style.whiteSpace = 'nowrap';
+      btn.addEventListener('click', ()=>{
+        navigator.clipboard.writeText(text).then(()=>{
+          btn.textContent = 'Copied!';
+          setTimeout(()=>{ btn.textContent = 'Copy'; }, 2000);
+        });
+      });
+
+      box.appendChild(content);
+      box.appendChild(btn);
+      wrap.appendChild(box);
+      return wrap;
+    };
+
+    out.appendChild(block('APA (7th Edition)', d.citations.apa));
+    out.appendChild(block('Nature / Vancouver', d.citations.nature));
+    out.appendChild(block('BibTeX (for LaTeX / Overleaf)', d.citations.bibtex, true));
+  }catch(e){ showError(out, e); }
+}
+
+/* ---------- n-of-1 pipeline ---------- */
+$('#btnRunNof1')?.addEventListener('click', async ()=>{
+  const out = $('#nof1Out');
+  const patient = $('#nof1Patient').value.trim() || 'PATIENT-N1';
+  const gene = $('#nof1Gene').value.trim().toUpperCase();
+  if(!gene){
+    alert('Please enter a target gene symbol.');
+    return;
+  }
+  const disease = $('#nof1Disease').value;
+  const variant = $('#nof1Variant').value.trim() || 'cryptic_splice_variant';
+  const nfl = parseFloat($('#nof1Nfl').value) || 65.0;
+  const div = parseInt($('#nof1Div').value) || 28;
+
+  showLoading(out, 'running autonomous N-of-1 translational pipeline…');
+  try{
+    const res = await api('/api/nof1', {
+      patient, gene, disease, variant, nfl, div
+    });
+    out.innerHTML = '';
+    const d = res.dossier;
+
+    // Header card
+    const hdr = el('div', 'readout');
+    hdr.style.marginBottom = '18px';
+    const tierPill = el('span', 'tier-badge');
+    if(d.actionability_tier.includes('Tier 1')) tierPill.className = 'tier-badge tier-strong';
+    else if(d.actionability_tier.includes('Tier 2')) tierPill.className = 'tier-badge tier-moderate';
+    else if(d.actionability_tier.includes('Tier 3')) tierPill.className = 'tier-badge tier-weak';
+    else tierPill.className = 'tier-badge tier-single-lab';
+    tierPill.textContent = d.actionability_tier;
+
+    const topRow = el('div');
+    topRow.style.display = 'flex';
+    topRow.style.justifyContent = 'space-between';
+    topRow.style.alignItems = 'center';
+    topRow.appendChild(el('div', 'ev-name', `${patient} · ${gene} (${d.stage1_splice_and_mechanism.disease_context})`));
+    topRow.appendChild(tierPill);
+    hdr.appendChild(topRow);
+
+    const verd = el('div', 'interp', d.executive_verdict);
+    verd.style.marginTop = '10px';
+    hdr.appendChild(verd);
+
+    // Download button
+    const dlBtn = el('button', 'run', 'Download Preclinical IND Dossier (.md)');
+    dlBtn.style.marginTop = '12px';
+    dlBtn.addEventListener('click', ()=>{
+      const blob = new Blob([res.markdown], {type: 'text/markdown;charset=utf-8'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${patient}_${gene}_IND_Dossier.md`;
+      a.click();
+    });
+    hdr.appendChild(dlBtn);
+    out.appendChild(hdr);
+
+    // 6-Card Grid
+    const grid = el('div', 'detail-grid');
+    grid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(320px, 1fr))';
+    grid.style.gap = '14px';
+
+    const card = (title, items) => {
+      const c = el('div', 'ev');
+      c.style.padding = '14px';
+      const ch = el('h4', null, title);
+      ch.style.margin = '0 0 10px 0';
+      ch.style.color = 'var(--ch-cyan)';
+      ch.style.fontFamily = 'var(--mono)';
+      ch.style.fontSize = '13px';
+      c.appendChild(ch);
+      const dl = el('dl', 'detail-grid');
+      dl.style.gridTemplateColumns = '1fr';
+      items.forEach(([k,v])=>{
+        const row = el('div', 'detail');
+        row.appendChild(el('dt', null, k));
+        row.appendChild(el('dd', null, String(v)));
+        dl.appendChild(row);
+      });
+      c.appendChild(dl);
+      return c;
+    };
+
+    const s1 = d.stage1_splice_and_mechanism;
+    const s2 = d.stage2_human_concordance;
+    const s3 = d.stage3_therapeutic_aso;
+    const s4 = d.stage4_counterfactual_simulation;
+    const s5 = d.stage5_biomarker_trajectory;
+    const s6 = d.stage6_preclinical_protocol;
+
+    grid.appendChild(card('1. Molecular Mechanism & Pathology', [
+      ['Target Gene & Variant', `${gene} (${s1.variant_id})`],
+      ['Mechanism Class', s1.mechanism_class],
+      ['Routed Modality', s1.therapeutic_modality],
+    ]));
+
+    grid.appendChild(card('2. Human snRNA-seq Brain Concordance', [
+      ['In Vivo Concordance', `${s2.concordance_status.toUpperCase()} (${s2.concordance_score_pct}%)`],
+      ['Vulnerable Brain Cell Type', s2.primary_human_cell_type],
+      ['Evidence Source', s2.evidence_source],
+    ]));
+
+    grid.appendChild(card('3. Lead In Silico Therapeutic ASO', [
+      ['Lead Sequence (5\'->3\')', s3.lead_oligo_sequence],
+      ['Chemistry Architecture', s3.chemistry],
+      ['Duplex Tm / dG_37', `${s3.melting_temp_c}°C / ${s3.gibbs_free_energy_37c} kcal/mol`],
+      ['Predicted CSF Half-Life', `~${s3.predicted_cns_half_life_days} days`],
+      ['Vendor Order Specification', s3.vendor_idt_format],
+    ]));
+
+    grid.appendChild(card('4. Causal Transcriptomic Simulation', [
+      ['Vector Rescue Efficiency', `${s4.rescue_efficiency_pct.toFixed(1)}%`],
+      ['Cosine Alignment (cos θ)', s4.cosine_rescue_alignment.toFixed(3)],
+      ['Collateral Toxicity Risk', `${s4.collateral_toxicity_index.toFixed(2)} (0=benign, 1=lethal)`],
+      ['Composite Rescue Score', `${s4.composite_rescue_score.toFixed(1)} / 100 (${s4.is_clinically_viable ? 'VIABLE' : 'NON-VIABLE'})`],
+    ]));
+
+    grid.appendChild(card('5. Fluid Biomarker Pharmacodynamics', [
+      ['Baseline Plasma NfL', `${s5.baseline_nfl_pg_ml} pg/mL (${s5.patient_progression_tier})`],
+      ['Projected Trajectory', `Wk12: ${s5.predicted_week12_nfl.toFixed(1)} | Wk24: ${s5.predicted_week24_nfl.toFixed(1)} | Wk48: ${s5.predicted_week48_nfl.toFixed(1)} pg/mL`],
+      ['Maximal Suppression', `-${s5.maximal_nfl_reduction_pct.toFixed(1)}%`],
+      ['Trial Cohort Optimization', `${s5.sample_size_reduction_pct}% patient reduction / arm`],
+      ['FDA Accelerated Milestone', s5.clinical_surrogate_milestone],
+    ]));
+
+    grid.appendChild(card('6. Pre-Registered Study Protocol', [
+      ['Protocol SHA-256 Digest', s6.protocol_sha256],
+      ['Blinding Verification Token', s6.blinding_token],
+      ['Required Sample Size', `${s6.recommended_pairs} isogenic pairs (assumed ρ = ${s6.inter_batch_correlation_rho})`],
+      ['Evaporation Edge Barrier', s6.evaporation_barrier_verified ? 'VERIFIED (PBS perimeter)' : 'MISSING'],
+    ]));
+
+    out.appendChild(grid);
+  }catch(e){ showError(out, e); }
+});
 
 /* ---------- init ---------- */
 loadVocab().catch(()=>{});

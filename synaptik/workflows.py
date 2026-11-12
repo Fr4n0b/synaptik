@@ -443,3 +443,35 @@ def meta_analysis_to_dict(meta) -> dict:
     from dataclasses import asdict
     return asdict(meta)
 
+
+def run_nof1_workflow(
+    patient_id: str,
+    target_gene: str,
+    disease: str = "als",
+    variant_id: str = "cryptic_splice_variant",
+    target_sequence: str | None = None,
+    baseline_nfl: float = 65.0,
+    cell_model: str = "ipsc_motor_neuron",
+    div: int = 28,
+) -> tuple[dict, str]:
+    """Execute the end-to-end N-of-1 translational pipeline, returning (dossier_dict, markdown)."""
+    from .nof1.pipeline import (
+        Nof1PatientCase,
+        nof1_dossier_to_dict,
+        nof1_dossier_to_markdown,
+        run_nof1_pipeline,
+    )
+    case = Nof1PatientCase(
+        patient_id=patient_id,
+        target_gene=target_gene,
+        disease=disease,
+        variant_id=variant_id,
+        target_sequence=target_sequence,
+        baseline_nfl_pg_ml=baseline_nfl,
+        cell_model=cell_model,
+        maturity_div=div,
+    )
+    dossier = run_nof1_pipeline(case)
+    return nof1_dossier_to_dict(dossier), nof1_dossier_to_markdown(dossier)
+
+

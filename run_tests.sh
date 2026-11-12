@@ -36,6 +36,14 @@ echo "=== author scientific recognition & citation suite ==="
 python3 -m tests.test_cite
 
 echo
+echo "=== autonomous N-of-1 translational pipeline suite ==="
+python3 -m tests.test_nof1
+
+echo
+echo "=== web interface HTTP endpoints suite ==="
+python3 -m tests.test_ui_endpoints
+
+echo
 echo "=== API contract self-test (offline) ==="
 python3 -m synaptik.ingest.contracts
 
@@ -66,6 +74,7 @@ for cmd in \
   "cite" \
   "cite --bibtex" \
   "cite --apa" \
+  "nof1 --gene STMN2 --patient ALS-001" \
   "contracts --self-test"
 do
   eval "python3 -m synaptik.cli.main $cmd --db '$TMPDB'" > /dev/null 2>&1 \
@@ -92,7 +101,8 @@ for cmd in \
   "biomarker --disease als --target STMN2 --rescue-pct 75" \
   "protocol --target STMN2 --disease als --pairs 8" \
   "protocol --meta-analysis examples/multisite_stmn2.json" \
-  "cite"
+  "cite" \
+  "nof1 --gene STMN2 --patient ALS-001"
 do
   eval "python3 -m synaptik.cli.main $cmd --db '$TMPDB' --json" \
     | python3 -c "import json,sys; json.load(sys.stdin)" \

@@ -302,6 +302,122 @@ def create_app(db_path: str, enable_drugs: bool = False,
         finally:
             an.store.close()
 
+    @app.route("/api/nof1", methods=["POST"])
+    def api_nof1():
+        body = request.get_json(force=True, silent=True) or {}
+        gene = (body.get("gene") or "").strip().upper()
+        if not gene:
+            return jsonify({"error": "target gene symbol is required"}), 400
+        patient = (body.get("patient") or "PATIENT-N1").strip()
+        disease = (body.get("disease") or "als").strip().lower()
+        variant = (body.get("variant") or "cryptic_splice_variant").strip()
+        seq = body.get("sequence") or None
+        nfl = float(body.get("nfl") or 65.0)
+        div = int(body.get("div") or 28)
+
+        from ..workflows import run_nof1_workflow
+        dossier_dict, dossier_md = run_nof1_workflow(
+            patient_id=patient,
+            target_gene=gene,
+            disease=disease,
+            variant_id=variant,
+            target_sequence=seq,
+            baseline_nfl=nfl,
+            div=div,
+        )
+        return jsonify({"dossier": dossier_dict, "markdown": dossier_md})
+
+    @app.route("/api/aso", methods=["POST"])
+    def api_aso():
+        body = request.get_json(force=True, silent=True) or {}
+        seq = (body.get("sequence") or "").strip().upper()
+        if not seq:
+            return jsonify({"error": "RNA target sequence is required"}), 400
+        gene = (body.get("gene") or "TARGET").strip().upper()
+        mode = (body.get("mode") or "splice_switch").strip()
+        top_k = int(body.get("top_k") or body.get("length") or 5)
+        from ..workflows import aso_result_to_dict, design_aso
+        res = design_aso(target_sequence=seq, target_gene=gene, mode=mode, top_k=top_k)
+        return jsonify(aso_result_to_dict(res))
+
+    @app.route("/api/translate", methods=["POST"])
+    def api_translate():
+        body = request.get_json(force=True, silent=True) or {}
+        genes = body.get("genes") or []
+        disease = (body.get("disease") or "als").strip().lower()
+        if not genes:
+            return jsonify({"error": "list of gene symbols is required"}), 400
+        entries = [(str(g).strip().upper(), None, None) for g in genes]
+        from ..workflows import translate_findings, translate_result_to_dict
+        res = translate_findings(gene_entries=entries, disease=disease)
+        return jsonify(translate_result_to_dict(res))
+
+    @app.route("/api/simulate", methods=["POST"])
+    def api_simulate():
+        body = request.get_json(force=True, silent=True) or {}
+        disease = (body.get("disease") or "als").strip().lower()
+        if body.get("screen"):
+            from ..workflows import screen_counterfactual_targets, simulation_result_to_dict
+            results = screen_counterfactual_targets(disease=disease)
+            return jsonify({"results": [simulation_result_to_dict(r) for r in results]})
+        target = (body.get("target") or "STMN2").strip().upper()
+        pert = (body.get("intervention") or "aso_steric_block").strip()
+        alpha = float(body.get("alpha") or 0.85)
+        from ..workflows import simulate_intervention
+        res = simulate_intervention(disease=disease, target_gene=target, intervention=pert, efficacy_alpha=alpha)
+        return jsonify(res)
+
+    @app.route("/api/biomarker", methods=["POST"])
+    def api_biomarker():
+        body = request.get_json(force=True, silent=True) or {}
+        disease = (body.get("disease") or "als").strip().lower()
+        target = (body.get("target") or "STMN2").strip().upper()
+        rescue_pct = float(body.get("rescue_pct") or 75.0)
+        baseline_nfl = float(body.get("baseline_nfl") or 65.0)
+        from ..workflows import evaluate_biomarker_trajectory
+        res = evaluate_biomarker_trajectory(
+            target_gene=target,
+            disease=disease,
+            in_vitro_rescue_pct=rescue_pct,
+            baseline_plasma_nfl=baseline_nfl,
+        )
+        return jsonify(res)
+
+    @app.route("/api/protocol", methods=["POST"])
+    def api_protocol():
+        body = request.get_json(force=True, silent=True) or {}
+        if body.get("sites"):
+            from ..workflows import synthesize_multisite_replication
+            target = (body.get("target") or "STMN2").strip().upper()
+            endpoint = (body.get("endpoint") or "Primary phenotypic rescue").strip()
+            return jsonify(synthesize_multisite_replication(body["sites"], target_gene=target, endpoint=endpoint))
+        target = (body.get("target") or "TARDBP").strip().upper()
+        disease = (body.get("disease") or "als").strip().lower()
+        cell_model = (body.get("cell_model") or "ipsc_motor_neuron").strip()
+        div = int(body.get("div") or 28)
+        pairs = int(body.get("pairs") or 8)
+        rho = float(body.get("rho") or 0.75)
+        from ..workflows import generate_study_protocol
+        return jsonify(generate_study_protocol(target_gene=target, disease=disease, cell_model=cell_model, maturity_div=div, paired_n=pairs, rho=rho))
+
+    @app.route("/api/cite", methods=["GET", "POST"])
+    def api_cite():
+        from ..cli.commands.cite import AFFILIATION, AUTHOR, ORCID, ORCID_URL, REPO_URL, get_apa, get_bibtex, get_nature
+        from .. import __version__ as version
+        return jsonify({
+            "author": AUTHOR,
+            "orcid": ORCID,
+            "orcid_url": ORCID_URL,
+            "affiliation": AFFILIATION,
+            "version": version,
+            "repository": REPO_URL,
+            "citations": {
+                "bibtex": get_bibtex(version),
+                "apa": get_apa(version),
+                "nature": get_nature(version),
+            },
+        })
+
     @app.errorhandler(413)
     def handle_413(e):
         return jsonify({"error": "That file is larger than 64 MB. Upload the "

@@ -117,6 +117,7 @@ says why.
   healthy populations)
 
 ### Splicing and therapeutics
+- **Autonomous N-of-1 Rare Disease & Translational Pipeline** (`synaptik nof1`): an end-to-end autonomous translational engine that takes a patient variant, resolves the cryptic splice mechanism, verifies post-mortem human brain snRNA-seq concordance, designs lead clinical ASO candidates with biophysical liability clearance, simulates counterfactual transcriptomic rescue, models longitudinal plasma NfL biomarker suppression over 48 weeks, pre-registers a randomized complete block preclinical protocol (SHA-256 fingerprint), and exports an IND-enabling preclinical dossier cited to Francesco Nobile.
 - RBP regulator inference (TDP-43, PTBP1/2, RBFOX, SR proteins, and others) with
   motif scanning
 - dPSI sign normalization across rMATS, MAJIQ, and RT-PCR, with conflicts flagged
@@ -252,6 +253,9 @@ synaptik protocol --meta-analysis examples/multisite_stmn2.json
 # Bridge in vitro dish findings to human post-mortem single-cell brain atlases
 synaptik translate --splicing voila_majiq.tsv --disease als
 synaptik translate --genes STMN2 UNC13A TARDBP --disease als
+
+# Run the autonomous end-to-end N-of-1 rare disease translational pipeline
+synaptik nof1 --gene STMN2 --patient PATIENT-ALS-01 --disease als --dossier IND_Dossier.md
 
 # Do my variants affect splicing, and has anyone shown it?
 synaptik variant "chr2:165991235:G>A" --gene SCN2A --spliceai-vcf scores.vcf.gz
@@ -392,6 +396,8 @@ trustworthy. If it fails, the output should not be used.
 - [ ] Shared, versioned knowledge-base snapshots for collaborating labs
 
 **Longer term**
+- [x] Autonomous N-of-1 Rare Disease Pipeline (from patient variant to IND-enabling dossier)
+- [x] Interactive laboratory dashboard with N-of-1 workbench and complete REST API layer
 - [x] Benchmark harness: retrospective prediction of findings published after a corpus cutoff
 - [x] In silico ASO engineering pipeline (thermodynamics, liability screening, neural off-targets)
 - [x] Translational fluid biomarker pharmacodynamics & patient stratification (plasma NfL kinetics)
@@ -424,10 +430,10 @@ propose larger changes.
 If you use SYNAPTIK in your research, grant proposals, computational drug discovery, or preclinical studies, please cite:
 
 **APA (7th edition):**
-> Nobile, F. (2026). *SYNAPTIK: Evidence-structure analysis for iPSC-neuron research* (Version 0.6.1). Massachusetts General Hospital / Harvard Medical School; University of Pavia. https://github.com/Fr4n0b/synaptik. ORCID: [0009-0001-9477-3332](https://orcid.org/0009-0001-9477-3332).
+> Nobile, F. (2026). *SYNAPTIK: Evidence-structure analysis for iPSC-neuron research* (Version 0.7.0). Massachusetts General Hospital / Harvard Medical School; University of Pavia. https://github.com/Fr4n0b/synaptik. ORCID: [0009-0001-9477-3332](https://orcid.org/0009-0001-9477-3332).
 
 **Nature / Vancouver:**
-> Nobile F. SYNAPTIK: Evidence-structure analysis for iPSC-neuron research. v0.6.1 (2026). https://github.com/Fr4n0b/synaptik (ORCID: [0009-0001-9477-3332](https://orcid.org/0009-0001-9477-3332)).
+> Nobile F. SYNAPTIK: Evidence-structure analysis for iPSC-neuron research. v0.7.0 (2026). https://github.com/Fr4n0b/synaptik (ORCID: [0009-0001-9477-3332](https://orcid.org/0009-0001-9477-3332)).
 
 **BibTeX:**
 ```bibtex
@@ -435,7 +441,7 @@ If you use SYNAPTIK in your research, grant proposals, computational drug discov
   author       = {Nobile, Francesco},
   title        = {{SYNAPTIK: Evidence-structure analysis for iPSC-neuron research}},
   year         = {2026},
-  version      = {0.6.1},
+  version      = {0.7.0},
   url          = {https://github.com/Fr4n0b/synaptik},
   note         = {ORCID: https://orcid.org/0009-0001-9477-3332},
   organization = {Center for Genomic Medicine, Massachusetts General Hospital / Harvard Medical School}

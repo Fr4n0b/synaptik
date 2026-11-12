@@ -13,7 +13,7 @@ REPO_URL = "https://github.com/Fr4n0b/synaptik"
 YEAR = "2026"
 
 
-def get_bibtex(version: str = "0.6.1") -> str:
+def get_bibtex(version: str = "0.7.0") -> str:
     return f"""@software{{nobile{YEAR}synaptik,
   author       = {{Nobile, Francesco}},
   title        = {{{{SYNAPTIK: Evidence-structure analysis for iPSC-neuron research}}}},
@@ -25,7 +25,7 @@ def get_bibtex(version: str = "0.6.1") -> str:
 }}"""
 
 
-def get_apa(version: str = "0.6.1") -> str:
+def get_apa(version: str = "0.7.0") -> str:
     return (
         f"Nobile, F. ({YEAR}). SYNAPTIK: Evidence-structure analysis for iPSC-neuron research "
         f"(Version {version}). Massachusetts General Hospital / Harvard Medical School; University of Pavia. "
@@ -33,7 +33,7 @@ def get_apa(version: str = "0.6.1") -> str:
     )
 
 
-def get_nature(version: str = "0.6.1") -> str:
+def get_nature(version: str = "0.7.0") -> str:
     return (
         f"Nobile F. SYNAPTIK: Evidence-structure analysis for iPSC-neuron research. "
         f"v{version} ({YEAR}). {REPO_URL} (ORCID: {ORCID})."

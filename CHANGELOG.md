@@ -2,6 +2,35 @@
 
 All notable changes to SYNAPTIK are recorded here.
 
+## 0.7.0 — 2026-11-12
+
+### Added
+- **Autonomous N-of-1 Rare Disease & Translational Pipeline (`synaptik nof1` & `synaptik/nof1/pipeline.py`)**:
+  - Unifies the entire bench-to-bedside translational pipeline into an autonomous, closed-loop diagnostic and therapeutic design engine.
+  - Chains 7 rigorous stages in a single pass:
+    1. Splicing mechanism and target window resolution for hallmark neurodegenerative disease targets (*STMN2*, *UNC13A*, *SMN2*, *ELP1*, *COL6A1*, *ATXN2*, *TARDBP*).
+    2. Dish-to-Brain concordance evaluation against human in vivo post-mortem single-nucleus transcriptomic atlases.
+    3. Steric-blocking and splice-modulating antisense oligonucleotide (ASO) candidate engineering with thermodynamic and specificity scoring.
+    4. Causal counterfactual transcriptomic simulation predicting downstream transcriptomic and cellular network recovery.
+    5. Longitudinal fluid biomarker (Plasma NfL) pharmacodynamic modeling and clinical trial patient stratification.
+    6. Preclinical study protocol generation with cryptographic SHA-256 pre-registration fingerprint and 96-well randomized complete block design (RCBD).
+    7. Automated actionability tier classification (Tier 1: Clinically Actionable IND-Ready, Tier 2: Preclinical Validation Required, Tier 3: Optimization Needed, Tier 4: Exploratory) and production of an audit-ready, 7-page Markdown IND-Enabling Dossier (`--dossier <PATH>`).
+- **Interactive Laboratory Web Dashboard & REST API Suite (`synaptik ui` & `synaptik/ui/server.py`)**:
+  - Modernized single-page web application with dedicated **N-of-1 Rare Disease Pipeline** tab and **Cite & Credit** panel.
+  - Interactive parameters, real-time stage progression cards, live IND Dossier generation and one-click markdown file export.
+  - Comprehensive HTTP REST API endpoints:
+    - `POST /api/nof1` — Execute complete N-of-1 autonomous pipeline.
+    - `POST /api/aso` — In silico therapeutic ASO engineering.
+    - `POST /api/translate` — Dish-to-Brain post-mortem single-cell concordance.
+    - `POST /api/simulate` — Counterfactual genomic rescue simulation.
+    - `POST /api/biomarker` — Fluid biomarker pharmacodynamics and clinical stratification.
+    - `POST /api/protocol` — Pre-registered study design protocol and RCBD plate map.
+    - `GET /api/cite` — Citation metadata, BibTeX, APA, and Nature format strings.
+- **Dedicated Regression Test Suites**:
+  - `tests/test_nof1.py` (26 checks): End-to-end N-of-1 pipeline validation, dossier markdown generation, author citation/ORCID embedding, and CLI smoke tests.
+  - `tests/test_ui_endpoints.py` (18 checks): Full REST API endpoint testing, JSON schema validation, and error handling.
+  - Platform test suite expands to **406 passing checks across 10 independent test suites**.
+
 ## 0.6.1 — 2026-11-12
 
 ### Added

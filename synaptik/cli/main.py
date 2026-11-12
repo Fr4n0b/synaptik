@@ -883,6 +883,7 @@ examples:
   synaptik lookup --target SCN2A --div 21          check if it has been done
   synaptik splicing --gene STMN2                   splicing-focused view
   synaptik compare "SYN1 puncta" "mEPSC frequency" cross-check two readouts
+  synaptik nof1 --gene STMN2 --patient ALS-001     autonomous N-of-1 pipeline
   synaptik cite                                    cite Francesco Nobile & SYNAPTIK
 
 citation:
