@@ -459,6 +459,30 @@ Therapeutic oligonucleotide design is governed by biophysics, not heuristic stri
 
 **Synthesis specifications.** Generates orderable vendor sequences (IDT notation with 2'-MOE `m` prefixes and phosphorothioate `*` linkages), molecular weight (sodium salt), and estimated human CSF terminal half-life (~135 days for 2'-MOE/PS, based on clinical pharmacokinetics).
 
+## Dish-to-brain human post-mortem single-cell translational bridge
+
+Cell culture in human iPSC-derived neurons frequently suffers from two translational traps:
+1. **Culture artifacts and discordant directionality:** In vitro artifacts (e.g. ambient 21% $O_2$ vs physiological brain 3% $O_2$, 2D plastic substrata, serum-free media variations) can invert the transcriptional direction of compensatory or stress pathways.
+2. **Developmental maturation confounders:** Immature iPSC-derived neurons (DIV 21–35) naturally lack expression of adult neurofilaments (*NEFH*) and mature NMDA receptor subunits (*GRIN2A*). Mistaking developmental immaturity for disease pathology leads to spurious rescue claims.
+
+**Pathology-aware concordance scoring.**
+SYNAPTIK evaluates in vitro perturbation data against curated single-nucleus transcriptomic atlases of human post-mortem brain tissue (ALS NYGC Consortium, SEA-AD Alzheimer's, FTD):
+- *Cryptic exon inclusion:* For cryptic exon targets regulated by TDP-43 (*STMN2*, *UNC13A*, *AARS1*), loss of nuclear TDP-43 causes non-conserved cryptic exon inclusion, which triggers nonsense-mediated decay (NMD) or premature polyadenylation and drops functional protein expression. An observed in vitro splicing inclusion ($E(\Delta\Psi) > 0$) is biologically concordant with human post-mortem disease pathology where cryptic inclusion is the hallmark lesion.
+- *Standard cassette exon skipping & expression:* For standard functional cassette exons (*KALRN*), skipping ($E(\Delta\Psi) < 0$) or down-regulation in dish is evaluated against down-regulation in human motor units.
+- *Concordance scoring:*
+  $$\text{Score} = \frac{N_{\text{concordant}}}{N_{\text{evaluated}} - N_{\text{developmental\_gap}}} \times 100$$
+  Penalizes direct conflicts ($\text{Score} = \max(0, \text{Score} - 20 \times N_{\text{discordant}})$).
+
+**Cell-type specificity mapping.**
+Markers for specific human CNS lineages are curated from landmark snRNA-seq datasets:
+- Upper Motor Neurons / Betz cells (*FEZF2*, *BCL11B*, *CRYM*)
+- Lower Motor Neurons / Spinal cord (*CHAT*, *MNX1*, *ISL1*, *SLC18A3*)
+- Cortical Projection Neurons / Layers 2–6 (*SLC17A7*, *SATB2*, *TBR1*)
+- GABAergic Interneurons (*GAD1*, *GAD2*, *PVALB*, *SST*, *VIP*)
+- Astrocytes (*GFAP*, *AQP4*, *ALDH1L1*, *SLC1A2*)
+- Microglia (*AIF1*, *TMEM119*, *CX3CR1*, *P2RY12*)
+- Oligodendrocytes (*MBP*, *MOG*, *OLIG2*, *PDGFRA*)
+
 ## Phenotype pooling
 
 Records for related phenotype terms are pooled when analysing a phenotype.

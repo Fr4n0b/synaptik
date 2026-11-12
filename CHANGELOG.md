@@ -2,6 +2,32 @@
 
 All notable changes to SYNAPTIK are recorded here.
 
+## 0.4.1 — 2026-11-12
+
+### Added
+- **`synaptik translate` — Dish-to-Brain Human Post-Mortem snRNA-seq Bridge**:
+  - Connects human iPSC neuronal culture findings directly to human post-mortem single-nucleus transcriptomic (snRNA-seq) disease atlases (`synaptik/translate/atlas.py`).
+  - Benchmarks in vitro findings against curated hallmark signatures from landmark post-mortem studies:
+    - **Amyotrophic Lateral Sclerosis (ALS)**: NYGC ALS Consortium snRNA-seq, *STMN2* (Klim et al. Nat Neurosci 2019, Prudencio et al. Acta Neuropathol 2020), *UNC13A* (Brown et al. Nature 2022, Ma et al. Nature 2022), *KALRN* (Humphrey et al. Nat Neurosci 2023).
+    - **Frontotemporal Dementia (FTD)**: Cortical TDP-43 and *GRN* haploinsufficiency single-cell profiles.
+    - **Alzheimer's Disease (AD)**: Seattle Alzheimer's Disease Brain Cell Atlas (SEA-AD) single-cell transcriptomic profiles.
+  - **Cell-Type Specificity Mapping**: Maps findings to distinct human CNS cellular subpopulations:
+    - Upper Motor Neurons / Betz cells (*FEZF2*, *BCL11B*, *CRYM*)
+    - Lower Motor Neurons / Spinal cord (*CHAT*, *MNX1*, *ISL1*, *SLC18A3*)
+    - Cortical Projection Neurons / Layers 2–6 (*SLC17A7*, *SATB2*, *TBR1*)
+    - GABAergic Interneurons (*GAD1*, *GAD2*, *PVALB*, *SST*, *VIP*)
+    - Astrocytes (*GFAP*, *AQP4*, *ALDH1L1*, *SLC1A2*)
+    - Microglia (*AIF1*, *TMEM119*, *CX3CR1*, *P2RY12*)
+    - Oligodendrocytes & OPCs (*MBP*, *MOG*, *OLIG2*, *PDGFRA*)
+  - **Pathology-Aware Concordance Engine**:
+    - Distinguishes cryptic exon inclusion (where $E(\Delta\Psi) > 0$ denotes pathological TDP-43 loss-of-function) from normal cassette exon skipping.
+    - Compares observed perturbation direction against human post-mortem pathology, scoring concordance percentage, identifying direction conflicts, and issuing translational verdicts (`HIGH TRANSLATIONAL FIDELITY`, `MODERATE TRANSLATIONAL FIDELITY`, `MIXED TRANSLATIONAL FIDELITY`, or `TRANSLATIONAL DISCORDANCE DETECTED`).
+  - **Developmental Maturation Gap Detection**:
+    - Automatically identifies adult brain maturation markers (*NEFH*, *GRIN2A*) that fail to express in immature iPSC cultures (DIV 21–35), flagging them as developmental maturation gaps rather than disease discordances and issuing culture optimization recommendations (e.g. extending DIV or supplementing with brain-derived neurotrophic factors).
+  - CLI command `synaptik translate [--splicing <FILE> | --genes <GENES...>] --disease <DISEASE> [--json]`.
+  - Python API workflows: `translate_findings()` and `translate_result_to_dict()` in `synaptik/workflows.py`.
+  - Dedicated regression test suite [tests/test_translation.py](file:///c:/Users/frano/OneDrive/Desktop/Virtual_neuron/tests/test_translation.py) with 19 checks (276 checks total across the platform).
+
 ## 0.4.0 — 2026-11-12
 
 ### Added

@@ -61,6 +61,9 @@ from .sequence.benchmark_spliceai import (
     SpliceBenchmarkResult, run_spliceai_benchmark,
 )
 from .drug.aso import ASOCandidate, ASODesigner, ASODesignResult, ASOMode
+from .translate.atlas import (
+    TranslationalConcordanceResult, evaluate_translational_concordance,
+)
 
 
 def run_benchmark(store: Store, cutoff_year: int) -> BenchmarkResult:
@@ -69,6 +72,14 @@ def run_benchmark(store: Store, cutoff_year: int) -> BenchmarkResult:
 
 def run_splice_benchmark(threshold: float = 0.20) -> SpliceBenchmarkResult:
     return run_spliceai_benchmark(threshold=threshold)
+
+
+def translate_findings(
+    gene_entries: list[tuple[str, Direction | None, float | None]],
+    disease: str = "als",
+) -> TranslationalConcordanceResult:
+    """Evaluate in vitro findings against human post-mortem single-cell brain tissue."""
+    return evaluate_translational_concordance(gene_entries, disease=disease)
 
 
 def design_aso(
@@ -264,4 +275,25 @@ def aso_result_to_dict(res: ASODesignResult) -> dict:
         "precedent": res.precedent,
         "caveats": res.caveats,
         "candidates": [asdict(c) for c in res.candidates],
+    }
+
+
+def translate_result_to_dict(res: TranslationalConcordanceResult) -> dict:
+    from dataclasses import asdict
+    return {
+        "disease": res.disease.value,
+        "n_genes_evaluated": res.n_genes_evaluated,
+        "n_concordant": res.n_concordant,
+        "n_discordant": res.n_discordant,
+        "n_developmental_gap": res.n_developmental_gap,
+        "n_cell_type_mismatch": res.n_cell_type_mismatch,
+        "n_uncharacterized": res.n_uncharacterized,
+        "concordance_score_pct": res.concordance_score_pct,
+        "translational_verdict": res.translational_verdict,
+        "enriched_cell_types": [
+            {"cell_type": ct, "count": cnt, "percent": pct}
+            for ct, cnt, pct in res.enriched_cell_types
+        ],
+        "recommendations": res.recommendations,
+        "gene_calls": [asdict(c) for c in res.gene_calls],
     }
