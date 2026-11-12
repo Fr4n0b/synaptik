@@ -51,14 +51,23 @@ def deposit_phenotypes(
 
 def design_brief(
     store: Store, query: ExperimentQuery, cv: float | None = None,
-    power: float = 0.8, alpha: float = 0.05,
+    rho: float = 0.7, power: float = 0.8, alpha: float = 0.05,
 ) -> DesignBrief:
     lookup = Analyst(store).lookup_experiment(query, max_results=200)
-    return DesignAdvisor(alpha=alpha, power=power).brief(lookup, cv=cv)
+    return DesignAdvisor(alpha=alpha, power=power).brief(lookup, cv=cv, rho=rho)
+
+
+from .sequence.benchmark_spliceai import (
+    SpliceBenchmarkResult, run_spliceai_benchmark,
+)
 
 
 def run_benchmark(store: Store, cutoff_year: int) -> BenchmarkResult:
     return RetrospectiveBenchmark().run(list(store.iter_records()), cutoff_year)
+
+
+def run_splice_benchmark(threshold: float = 0.20) -> SpliceBenchmarkResult:
+    return run_spliceai_benchmark(threshold=threshold)
 
 
 # --------------------------------------------------------------------------
@@ -170,8 +179,11 @@ def design_brief_to_dict(b: DesignBrief) -> dict:
         "power": [{
             "scenario": p.label, "effect_percent": p.effect_percent,
             "cv": p.cv, "cohens_d": p.cohens_d, "n_per_group": p.n_per_group,
+            "n_paired": p.n_paired, "paired_rho": p.paired_rho,
         } for p in b.power],
         "recommended_n_per_group": b.recommended_n,
+        "recommended_n_paired": b.recommended_n_paired,
+        "paired_rho": b.paired_rho,
         "recommended_n_basis": b.recommended_n_basis,
         "impractical_unpaired": b.impractical,
         "detectable_effects": [
@@ -202,4 +214,19 @@ def benchmark_to_dict(res: BenchmarkResult) -> dict:
                      "description": r.description} for r in res.rankers],
         "tiers": res.tier_table,
         "caveats": res.caveats,
+    }
+
+
+def spliceai_benchmark_to_dict(res: SpliceBenchmarkResult) -> dict:
+    return {
+        "n_cases": res.n_cases,
+        "n_positives": res.n_positives,
+        "n_negatives": res.n_negatives,
+        "threshold": res.threshold,
+        "sensitivity": res.sensitivity,
+        "specificity": res.specificity,
+        "precision": res.precision,
+        "accuracy": res.accuracy,
+        "auroc": res.auroc,
+        "details": res.details,
     }

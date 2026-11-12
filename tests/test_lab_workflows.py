@@ -16,10 +16,11 @@ from synaptik.infer.benchmark import (
     RetrospectiveBenchmark, auroc, bootstrap_auroc_difference,
 )
 from synaptik.infer.design import (
-    DesignAdvisor, detectable_effect_d, sample_size_two_group,
+    DesignAdvisor, detectable_effect_d, sample_size_paired, sample_size_two_group,
 )
 from synaptik.infer.lookup import ExperimentLookup
 from synaptik.infer.splicing import NormalizedSplicingEvent
+from synaptik.sequence.benchmark_spliceai import run_spliceai_benchmark
 from synaptik.labdata import (
     LabCall, LabDataError, LabDataReconciler, UserSplicingEvent,
     frame_consequence, parse_phenotype_table, parse_splicing_table,
@@ -121,6 +122,30 @@ def test_splicing_table_parsing() -> None:
         raised = True
     check(raised, "a table without gene/dPSI columns is rejected with an "
                   "explanation")
+
+    # MAJIQ VOILA parsing test
+    majiq_text = (
+        "Gene Name\tGene ID\tLSV ID\tE(dPSI) per LSV junction\tP(|dPSI| > 0.20) per LSV junction\tLSV Type\tJunctions coords\n"
+        "STMN2\tENSG1\tlsv_1\t0.420;0.050\t0.00001;0.85000\ts\tchr8:79611214-79611334;chr8:79611214-79615000\n"
+        "UNC13A\tENSG2\tlsv_2\t0.310\t0.00002\tt\tchr19:17642414-17642511\n"
+    )
+    m1 = parse_splicing_table("voila.tsv", perturbed="sample1", text=majiq_text)
+    check(len(m1.events) == 2, "MAJIQ VOILA table parses successfully")
+    check(m1.events[0].gene == "STMN2" and abs(m1.events[0].delta_psi - 0.420) < 1e-4,
+          "MAJIQ multi-junction event selects max |E(dPSI)|")
+    check(m1.events[0].exon_length == 120, "MAJIQ junction coordinates parsed for exon length")
+
+    # LeafCutter parsing test
+    leaf_text = (
+        "cluster\tgenes\tlogef\tp\tp.adjust\n"
+        "chr8:79611214:79611334:clu_1_+\tSTMN2\t0.420\t1e-10\t1e-09\n"
+        "chr19:17642414:17642511:clu_2_+\tUNC13A\t-0.310\t2e-07\t2e-06\n"
+    )
+    l1 = parse_splicing_table("leafcutter_ds.tsv", perturbed="positive", text=leaf_text)
+    check(len(l1.events) == 2, "LeafCutter differential splicing table parses successfully")
+    check(l1.events[0].gene == "STMN2" and l1.events[0].exon_length == 120,
+          "LeafCutter cluster coordinates parsed for coordinates and length")
+    check(l1.events[0].fdr == 1e-09, "LeafCutter p.adjust parsed as FDR")
 
 
 def test_splicing_reconciliation() -> None:
@@ -270,6 +295,16 @@ def test_power() -> None:
     check(abs(detectable_effect_d(64) - 0.5) < 0.02,
           "detectable effect at n=64 inverts the sample-size calculation")
 
+    # Paired isogenic power analysis
+    check(sample_size_paired(0.8, rho=0.7) == 10,
+          "paired sample size d=0.8, rho=0.7 yields n=10 pairs")
+    check(sample_size_paired(0.8, rho=0.8) == 8,
+          "higher inter-batch correlation rho=0.8 reduces required pairs to 8")
+    check(sample_size_paired(0.8, rho=0.0) in (26, 27),
+          "rho=0 in paired test matches independent two-group requirement (~26-27)")
+    check(sample_size_paired(0.0) is None and sample_size_paired(0.8, rho=1.0) is None,
+          "invalid effect size or correlation in paired power returns None")
+
 
 def test_design_brief() -> None:
     print("\n[design: brief]")
@@ -292,6 +327,11 @@ def test_design_brief() -> None:
     check(all(h.n_per_group is None or h.n_per_group > p.n_per_group
               for h, p in zip(halved, published)),
           "planning on the halved effect always needs more replicates")
+    check(all(p.n_paired is not None and (p.n_per_group is None or p.n_paired < p.n_per_group)
+              for p in published),
+          "paired isogenic design requires fewer differentiations across all CVs")
+    check(b.recommended_n_paired is not None and b.recommended_n_paired < b.recommended_n,
+          "paired isogenic design recommendation requires fewer differentiations than two-group")
     check("assumption" in b.recommended_n_basis,
           "the recommended n states that its CV is an assumption")
 
@@ -458,6 +498,18 @@ def test_pooling_and_vocabulary() -> None:
           "short synonym still matches as a whole word")
 
 
+def test_spliceai_benchmark() -> None:
+    print("\n[sequence: neuronal splice benchmark]")
+    res = run_spliceai_benchmark(threshold=0.20)
+    check(res.n_cases == 10, "benchmark suite evaluates 10 gold-standard cases")
+    check(res.n_positives == 5 and res.n_negatives == 5,
+          "benchmark suite contains 5 true positives and 5 matched controls")
+    check(res.sensitivity >= 0.80, f"sensitivity >= 80% (got {res.sensitivity:.1%})")
+    check(res.specificity >= 0.80, f"specificity >= 80% (got {res.specificity:.1%})")
+    check(res.auroc >= 0.90, f"ROC-AUC >= 0.90 (got {res.auroc:.3f})")
+    check(res.false_positives == 0, "zero false positives on matched controls")
+
+
 def main() -> int:
     print("=" * 70)
     print("SYNAPTIK lab-workflow regression suite")
@@ -470,6 +522,7 @@ def main() -> int:
     test_design_brief()
     test_benchmark()
     test_pooling_and_vocabulary()
+    test_spliceai_benchmark()
     print("\n" + "=" * 70)
     if FAILURES:
         print(f"{len(FAILURES)} FAILURE(S):")

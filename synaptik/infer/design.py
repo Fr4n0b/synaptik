@@ -118,13 +118,16 @@ class PowerEstimate:
     cv: float
     cohens_d: float
     n_per_group: int | None
+    n_paired: int | None = None
+    paired_rho: float = 0.7
     label: str = ""
 
     def describe(self) -> str:
         n = (f"{self.n_per_group} differentiations per group"
              if self.n_per_group else "more than 200 per group (impractical)")
+        paired_str = f" [paired rho={self.paired_rho:.2g}: {self.n_paired} pairs]" if self.n_paired else ""
         return (f"{abs(self.effect_percent):.0f}% effect, CV "
-                f"{self.cv:.0%}: {n}")
+                f"{self.cv:.0%}: {n}{paired_str}")
 
 
 @dataclass
@@ -154,7 +157,9 @@ class DesignBrief:
     n_null_results: int = 0
     power: list[PowerEstimate] = field(default_factory=list)
     recommended_n: int | None = None
+    recommended_n_paired: int | None = None
     recommended_n_basis: str = ""
+    paired_rho: float = 0.7
     # (n per group, CV, smallest detectable % effect) for feasible designs
     detectable: list[tuple[int, float, float]] = field(default_factory=list)
     impractical: bool = False
@@ -183,6 +188,33 @@ def sample_size_two_group(
     for n in range(2, max_n + 1):
         df = 2 * n - 2
         nc = d * math.sqrt(n / 2.0)
+        t_crit = stats.t.ppf(1 - alpha / 2.0, df)
+        achieved = (1 - stats.nct.cdf(t_crit, df, nc)
+                    + stats.nct.cdf(-t_crit, df, nc))
+        if achieved >= power:
+            return n
+    return None
+
+
+def sample_size_paired(
+    cohens_d: float, rho: float = 0.7, alpha: float = 0.05, power: float = 0.8, max_n: int = 100
+) -> int | None:
+    """Number of pairs for a two-sided paired t-test by exact noncentral t.
+
+    In human iPSC modeling, differentiating mutant and isogenic control side by side
+    in each batch (parallel differentiation rounds) removes shared batch-to-batch
+    variability. rho is the inter-batch correlation (typically 0.6 to 0.85).
+    """
+    d = abs(cohens_d)
+    if d <= 0 or not math.isfinite(d) or rho >= 1.0 or rho < 0:
+        return None
+    denom = math.sqrt(2.0 * (1.0 - rho))
+    if denom <= 0:
+        return None
+    dz = d / denom
+    for n in range(2, max_n + 1):
+        df = n - 1
+        nc = dz * math.sqrt(n)
         t_crit = stats.t.ppf(1 - alpha / 2.0, df)
         achieved = (1 - stats.nct.cdf(t_crit, df, nc)
                     + stats.nct.cdf(-t_crit, df, nc))
@@ -237,7 +269,7 @@ class DesignAdvisor:
         self.power = power
 
     def brief(
-        self, lookup: LookupResult, cv: float | None = None
+        self, lookup: LookupResult, cv: float | None = None, rho: float = 0.7,
     ) -> DesignBrief:
         q = lookup.query
         b = DesignBrief(query=q)
@@ -266,7 +298,7 @@ class DesignAdvisor:
         recs = [m.record for m in basis]
         b.n_labs = len({r.source.lab_id for r in recs if r.source.lab_id})
         self._protocol(b, recs)
-        self._effects(b, recs, cv, anchored=bool(exact or close))
+        self._effects(b, recs, cv, anchored=bool(exact or close), rho=rho)
         self._weaknesses(b, recs, lookup)
         self._pitfalls(b, recs)
         b.key_papers = [m.summary_line() for m in basis[:6]]
@@ -305,7 +337,7 @@ class DesignAdvisor:
     # ---------------- effects and power ----------------
 
     def _effects(
-        self, b: DesignBrief, recs: list, cv: float | None, anchored: bool
+        self, b: DesignBrief, recs: list, cv: float | None, anchored: bool, rho: float = 0.7,
     ) -> None:
         dirs = Counter(r.outcome.direction.value for r in recs
                        if r.outcome.direction != Direction.UNSPECIFIED)
@@ -333,19 +365,25 @@ class DesignAdvisor:
         published = b.median_effect_percent
         shrunken = published / 2.0
         cvs = (cv,) if cv else DEFAULT_CVS
+        b.paired_rho = rho
         for label, eff in (("published median", published),
                            ("halved (winner's-curse allowance)", shrunken)):
             for c in cvs:
                 d = (eff / 100.0) / c
+                n_two = sample_size_two_group(d, self.alpha, self.power)
+                n_pr = sample_size_paired(d, rho=rho, alpha=self.alpha, power=self.power)
                 b.power.append(PowerEstimate(
                     effect_percent=eff, cv=c, cohens_d=round(d, 2),
-                    n_per_group=sample_size_two_group(d, self.alpha, self.power),
+                    n_per_group=n_two,
+                    n_paired=n_pr,
+                    paired_rho=rho,
                     label=label,
                 ))
 
         ref_cv = cv if cv else 0.25
-        b.recommended_n = sample_size_two_group(
-            (shrunken / 100.0) / ref_cv, self.alpha, self.power)
+        d_shrunk = (shrunken / 100.0) / ref_cv
+        b.recommended_n = sample_size_two_group(d_shrunk, self.alpha, self.power)
+        b.recommended_n_paired = sample_size_paired(d_shrunk, rho=rho, alpha=self.alpha, power=self.power)
         b.recommended_n_basis = (
             f"{self.power:.0%} power, two-sided alpha {self.alpha}, to detect "
             f"half the published median effect ({shrunken:.0f}%) with a "
@@ -421,11 +459,17 @@ class DesignAdvisor:
                 "would need more differentiations than is practical"
                 + (f" ({b.recommended_n} per group)." if b.recommended_n
                    else " (more than 200 per group)."))
-            b.recommendations.append(
-                "Reduce variance rather than add replicates: differentiate "
-                "mutant and isogenic control side by side in each batch and "
-                "analyse them as PAIRS. Pairing removes batch-to-batch "
-                "variability, which is usually the largest component.")
+            if b.recommended_n_paired and b.recommended_n_paired <= 15:
+                b.recommendations.append(
+                    f"RESCUE VIA PAIRING: Differentiating mutant and isogenic control side by side "
+                    f"in each batch (paired design, rho={b.paired_rho:.2g}) cuts the required "
+                    f"sample size down to {b.recommended_n_paired} pairs!")
+            else:
+                b.recommendations.append(
+                    "Reduce variance rather than add replicates: differentiate "
+                    "mutant and isogenic control side by side in each batch and "
+                    "analyse them as PAIRS. Pairing removes batch-to-batch "
+                    "variability, which is usually the largest component.")
             if feasible:
                 b.recommendations.append(
                     f"With {feasible[0]} unpaired differentiations per group "

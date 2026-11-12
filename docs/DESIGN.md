@@ -398,14 +398,25 @@ never report between-differentiation variability, so any single value would
 be invented. The brief shows 15%, 25% and 35% and labels the recommendation
 as resting on an assumption.
 
-**Impractical answers are converted into advice.** When the unpaired design
-needs more differentiations than a lab can run, the brief recommends pairing
-and reports the minimum detectable effect at feasible n, so that a null
-result can be interpreted rather than merely under-powered.
+**Impractical answers are converted into advice via paired isogenic designs.**
+When the unpaired design needs more differentiations than a lab can run (e.g. $N > 15$
+differentiations per group, which is common given 20–35% differentiation CVs), the
+brief automatically computes and presents a paired isogenic rescue design.
+
+Differentiating patient-derived (or CRISPR-engineered) mutant lines side-by-side with
+their isogenic parental control in each round removes shared batch-to-batch variation
+(media lots, incubator fluctuations, passage drift). With an inter-batch correlation
+$\rho \approx 0.60\text{--}0.85$, the effective paired Cohen's $d_z$ is:
+$$d_z = \frac{d}{\sqrt{2(1 - \rho)}}$$
+Power is calculated using the exact noncentral-$t$ distribution for paired differences
+with degrees of freedom $\nu = N - 1$ and noncentrality parameter $\delta = d_z \sqrt{N}$:
+$$\text{Power} = 1 - T_{\nu, \delta}(t_{\text{crit}}) + T_{\nu, \delta}(-t_{\text{crit}})$$
+where $t_{\text{crit}} = t_{1 - \alpha/2, \nu}$. For $d=0.8$ and $\rho=0.7$, this reduces
+the required sample size from 26 differentiations per genotype down to 10 matched pairs.
 
 Power uses the exact noncentral t distribution; the suite checks it against
 the standard table values (64, 26, 17 and 6 per group for d = 0.5, 0.8, 1
-and 2).
+and 2 for independent two-group tests, and 10 pairs for paired $d=0.8, \rho=0.7$).
 
 ## Retrospective benchmark
 

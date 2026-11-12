@@ -135,6 +135,11 @@ def _to_float(v: str | None) -> float | None:
     s = str(v).strip()
     if s == "" or s.upper() in ("NA", "NAN", "NULL", "NONE", "N/A", "INF", "-INF"):
         return None
+    if ";" in s:
+        # Multiple values (e.g. MAJIQ multiple junctions per LSV) -> select max magnitude
+        sub_vals = [_to_float(x) for x in s.split(";")]
+        valid = [x for x in sub_vals if x is not None]
+        return max(valid, key=abs) if valid else None
     try:
         f = float(s)
     except ValueError:
@@ -143,7 +148,10 @@ def _to_float(v: str | None) -> float | None:
 
 
 def _clean_gene(v: str | None) -> str:
-    return (v or "").strip().strip('"').strip("'")
+    g = (v or "").strip().strip('"').strip("'")
+    if "," in g:
+        g = g.split(",")[0].strip()
+    return g
 
 
 def parse_splicing_table(
@@ -179,6 +187,9 @@ def parse_splicing_table(
     cols = {c.strip().strip('"').lower(): c for c in reader.fieldnames if c}
 
     is_rmats = "inclevedifference" in cols or "incleveldifference" in cols
+    is_majiq = any("lsv" in c for c in cols) or any("mean_dpsi" in c for c in cols) or any("e(dpsi)" in c for c in cols)
+    is_leafcutter = "cluster" in cols or any("clu_" in c for c in cols) or ("logef" in cols and any(k in cols for k in ("p.adjust", "padj", "genes", "gene")))
+
     if is_rmats:
         if perturbed not in ("sample1", "sample2"):
             raise LabDataError(
@@ -192,6 +203,48 @@ def parse_splicing_table(
         gene_col = cols.get("genesymbol") or cols.get("geneid")
         fdr_col, p_col = cols.get("fdr"), cols.get("pvalue")
         fmt = "rMATS"
+    elif is_majiq:
+        if perturbed not in ("sample1", "sample2", "positive", "negative", "cond1", "cond2"):
+            raise LabDataError(
+                "This is a MAJIQ (VOILA) table. MAJIQ reports E(dPSI) as Condition 1 minus "
+                "Condition 2. State which condition is the perturbed condition: "
+                "perturbed='sample1' (or 'cond1') if condition 1 is perturbed, "
+                "or 'sample2' (or 'cond2') if condition 2 is perturbed."
+            )
+        sign = -1.0 if perturbed in ("sample2", "cond2", "negative") else 1.0
+        dpsi_col = next((cols[c] for c in (
+            "e(dpsi) per lsv junction", "mean_dpsi_per_lsv_junction",
+            "e(dpsi)", "mean_dpsi", "dpsi", "delta_psi"
+        ) if c in cols), None)
+        gene_col = next((cols[c] for c in (
+            "gene name", "gene_name", "genesymbol", "gene_symbol", "gene id", "gene_id", "gene"
+        ) if c in cols), None)
+        fdr_col = next((cols[c] for c in (
+            "p(|dpsi| > 0.20) per lsv junction", "p(|dpsi| > 0.10) per lsv junction",
+            "p(|dpsi|>0.20) per lsv junction", "p(|dpsi|>0.10) per lsv junction",
+            "probability_changing", "fdr", "padj", "qvalue"
+        ) if c in cols), None)
+        p_col = next((cols[c] for c in ("pvalue", "p_value", "p") if c in cols), None)
+        fmt = "MAJIQ (VOILA)"
+    elif is_leafcutter:
+        if perturbed not in ("positive", "negative", "sample1", "sample2"):
+            raise LabDataError(
+                "This is a LeafCutter table. State the sign convention: "
+                "perturbed='positive' if a positive delta_psi or log effect means more "
+                "inclusion in the perturbed condition, 'negative' if it means less."
+            )
+        sign = -1.0 if perturbed in ("negative", "sample2") else 1.0
+        dpsi_col = next((cols[c] for c in (
+            "deltapsi", "delta_psi", "dpsi", "logef", "effect_size"
+        ) if c in cols), None)
+        gene_col = next((cols[c] for c in (
+            "genes", "gene", "gene_name", "gene_symbol", "symbol"
+        ) if c in cols), None)
+        fdr_col = next((cols[c] for c in (
+            "p.adjust", "padj", "fdr", "qvalue", "q_value"
+        ) if c in cols), None)
+        p_col = next((cols[c] for c in ("p", "pvalue", "p_value") if c in cols), None)
+        fmt = "LeafCutter"
     else:
         if perturbed not in ("positive", "negative"):
             raise LabDataError(
@@ -281,16 +334,41 @@ def parse_splicing_table(
             et = SplicingEventType.UNSPECIFIED
 
         coords = None
-        if chr_col and start_col and end_col:
-            c, s, e = row.get(chr_col), row.get(start_col), row.get(end_col)
-            if c and s and e:
-                strand = (row.get(strand_col) or "").strip() if strand_col else ""
-                coords = f"{c.strip()}:{s.strip()}-{e.strip()}" + (
-                    f":{strand}" if strand else "")
+        c = (row.get(chr_col) or "").strip() if chr_col else ""
+        s = (row.get(start_col) or "").strip() if start_col else ""
+        e = (row.get(end_col) or "").strip() if end_col else ""
+        strand = (row.get(strand_col) or "").strip() if strand_col else ""
+
+        if not (c and s and e):
+            # Fallback for LeafCutter / MAJIQ cluster or junction coordinates
+            clu_col = next((cols[k] for k in ("cluster", "intron", "junctions coords", "junction") if k in cols), None)
+            if clu_col and row.get(clu_col):
+                raw_clu = str(row[clu_col]).strip()
+                first_seg = raw_clu.split(";")[0].strip()
+                parts = first_seg.split(":")
+                if len(parts) >= 3:
+                    # LeafCutter: chr:start:end:... or chr:start:end
+                    c = c or parts[0]
+                    s = s or parts[1]
+                    e = e or parts[2]
+                    if len(parts) >= 5 and parts[4] in ("+", "-"):
+                        strand = strand or parts[4]
+                    elif parts[-1] in ("+", "-"):
+                        strand = strand or parts[-1]
+                elif len(parts) == 2 and "-" in parts[1]:
+                    # MAJIQ: chr:start-end
+                    c = c or parts[0]
+                    se_parts = parts[1].split("-")
+                    if len(se_parts) == 2:
+                        s = s or se_parts[0]
+                        e = e or se_parts[1]
+
+        if c and s and e:
+            coords = f"{c}:{s}-{e}" + (f":{strand}" if strand else "")
 
         exon_length = None
-        if et == SplicingEventType.SKIPPED_EXON and start_col and end_col:
-            es, ee = _to_float(row.get(start_col)), _to_float(row.get(end_col))
+        if s and e:
+            es, ee = _to_float(s), _to_float(e)
             if es is not None and ee is not None and ee > es:
                 exon_length = int(ee - es)
 

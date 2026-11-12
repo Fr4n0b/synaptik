@@ -595,7 +595,7 @@ def aso_strategy(
             ],
         )
 
-    if event_type == SplicingEventType.APA:
+    if event_type == SplicingEventType.ALT_POLYA:
         return ASOStrategy(
             event_type, goal, True,
             "ASOs blocking the proximal polyadenylation signal can shift usage "

@@ -2,6 +2,27 @@
 
 All notable changes to SYNAPTIK are recorded here.
 
+## 0.3.1 — 2026-11-12
+
+### Added
+- **Native MAJIQ & LeafCutter splicing table ingestion**:
+  - Auto-detection of MAJIQ (VOILA) and LeafCutter TSV formats in `synaptik deposit splicing`.
+  - Parses multi-junction semicolon-separated values in MAJIQ (`E(dPSI) per LSV junction`), extracting the maximal effect junction $|E(\Delta\Psi)|$.
+  - Parses cluster coordinate strings (`chr:start:end:cluster_strand` and `chr:start-end`), deriving exact coordinates and cassette/spliced element length without requiring manual reformatting.
+  - Added synthetic validation test fixtures: `examples/voila_majiq.tsv` and `examples/leafcutter_ds.tsv`.
+- **Paired isogenic power analysis for human iPSC disease models**:
+  - Implemented exact noncentral-$t$ paired sample size calculation `sample_size_paired(cohens_d, rho=0.7)` in `synaptik/infer/design.py`.
+  - Differentiating mutant and isogenic control side by side across parallel differentiation rounds removes shared batch-to-batch variation ($\rho \approx 0.6\text{--}0.85$), rescuing sample sizes from impractical ($N > 25\text{--}50$ differentiations per group) down to feasible paired cohorts ($N = 6\text{--}10$ pairs).
+  - Wired into `synaptik design --rho <float>` and web design briefs with automated paired design rescue recommendation.
+- **Neuronal splice prediction benchmark suite**:
+  - New validation suite `synaptik/sequence/benchmark_spliceai.py` evaluating splice sequence models against curated gold-standard neurodegenerative and ALS/FTD splice variants (*STMN2*, *UNC13A*, *SMN2*, *ELP1*, *COL6A1*) and matched neutral controls.
+  - CLI command `synaptik benchmark --spliceai [--threshold 0.20] [--json]` reporting Sensitivity, Specificity, Precision, Balanced Accuracy, and ROC-AUC.
+- **Regression test expansions**:
+  - 10 new regression checks in `tests/test_lab_workflows.py` covering MAJIQ/LeafCutter ingestion, paired power exact noncentral-$t$ calculations, and the splice benchmark suite (total: 237 tests).
+
+### Fixed
+- Fixed `AttributeError: SplicingEventType.APA` in `synaptik/infer/splicing.py` by aligning with `SplicingEventType.ALT_POLYA`.
+
 ## 0.3.0 — 2026-11-12
 
 This release turns SYNAPTIK from a tool for reading the literature into one

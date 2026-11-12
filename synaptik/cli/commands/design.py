@@ -36,8 +36,12 @@ def cmd_design(args) -> int:
     if args.cv is not None and not (0 < args.cv < 2):
         print(Fmt.red("--cv is a fraction, e.g. 0.25 for 25%."))
         return 1
+    rho = args.rho if args.rho is not None else 0.7
+    if not (0 <= rho < 1):
+        print(Fmt.red("--rho must be between 0 and 0.99 (correlation between paired batches)."))
+        return 1
 
-    b = design_brief(Store(args.db), q, cv=args.cv, power=args.power)
+    b = design_brief(Store(args.db), q, cv=args.cv, rho=rho, power=args.power)
     if args.json:
         print(json.dumps(design_brief_to_dict(b), indent=2, default=str))
         return 0
@@ -79,26 +83,30 @@ def cmd_design(args) -> int:
         print(f"  null results      {b.n_null_results}")
 
     if b.power:
-        header("Sample size (independent differentiations per group)")
-        print(Fmt.dim(f"  two-sample t-test, {args.power:.0%} power, "
+        header("Sample size (independent differentiations per group / isogenic pairs)")
+        print(Fmt.dim(f"  two-sample & paired t-tests, {args.power:.0%} power, "
                       "two-sided alpha 0.05"))
         last = None
         for p in b.power:
             if p.label != last:
                 print(Fmt.bold(f"  {p.label}"))
                 last = p.label
-            n = str(p.n_per_group) if p.n_per_group else ">200"
+            n_unp = str(p.n_per_group) if p.n_per_group else ">200"
+            n_pr = str(p.n_paired) if p.n_paired else ">100"
             print(f"    {abs(p.effect_percent):5.0f}% effect   CV "
-                  f"{p.cv:.0%}   n = {n}")
+                  f"{p.cv:.0%}   unpaired n = {n_unp:<5s} | paired (rho={p.paired_rho:.2g}) = {n_pr} pairs")
         print()
         if b.impractical:
             n = b.recommended_n if b.recommended_n else ">200"
             print(Fmt.yellow(Fmt.bold(
-                f"  A realistic effect needs {n} per group unpaired: not "
-                "practical. See recommendations.")))
+                f"  A realistic effect needs {n} per group unpaired: not practical.")))
+            if b.recommended_n_paired:
+                print(Fmt.green(Fmt.bold(
+                    f"  PAIRING RESCUE: Differentiating isogenic pairs in parallel (rho={b.paired_rho:.2g}) needs only {b.recommended_n_paired} pairs!")))
         elif b.recommended_n:
             print(Fmt.green(Fmt.bold(
-                f"  Plan for {b.recommended_n} per group.")))
+                f"  Plan for {b.recommended_n} per group unpaired" +
+                (f" (or {b.recommended_n_paired} isogenic pairs)." if b.recommended_n_paired else "."))))
         print(Fmt.dim(f"  {b.recommended_n_basis}"))
         if b.detectable:
             print()
@@ -145,6 +153,9 @@ def register(sub, common) -> None:
     s.add_argument("--cv", type=float,
                    help="your between-differentiation coefficient of "
                         "variation as a fraction (e.g. 0.25)")
+    s.add_argument("--rho", type=float, default=0.7,
+                   help="expected inter-batch correlation in a paired isogenic "
+                        "design (default 0.7, typical 0.6-0.85)")
     s.add_argument("--power", type=float, default=0.8)
     s.add_argument("--json", action="store_true")
     s.set_defaults(func=cmd_design)
