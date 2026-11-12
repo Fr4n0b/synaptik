@@ -604,7 +604,8 @@ def cmd_compare(args) -> int:
     a, b = res["phenotype_a"], res["phenotype_b"]
     print(f"  A: {a['n_records']} records, {a['n_labs']} labs")
     print(f"  B: {b['n_records']} records, {b['n_labs']} labs")
-    print(f"  Jaccard overlap: {Fmt.bold(f'{res['jaccard']:.2f}')}")
+    jacc = res['jaccard']
+    print(f"  Jaccard overlap: {Fmt.bold(f'{jacc:.2f}')}")
     print()
     print(res["verdict"])
 
