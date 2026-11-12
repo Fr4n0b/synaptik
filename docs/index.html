@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SYNAPTIK | Evidence-Structure Analysis for iPSC-Neuron Research</title>
+  <meta name="description" content="Open-source evidence-structure analysis and multi-class genomic reconciliation for human iPSC-derived neuron research.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: #111827;
+      --border: #1f2937;
+      --accent: #38bdf8;
+      --accent-hover: #0284c7;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --code-bg: #0f172a;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg);
+      color: var(--text-main);
+      line-height: 1.6;
+      padding: 0 20px;
+    }
+    .container {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 40px 0 80px;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 50px;
+      padding: 40px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      background: rgba(56, 189, 248, 0.1);
+      color: var(--accent);
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-size: 3rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 16px;
+      background: linear-gradient(135deg, #fff 0%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .subtitle {
+      font-size: 1.25rem;
+      color: var(--text-muted);
+      max-width: 780px;
+      margin: 0 auto 28px;
+    }
+    .actions {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      padding: 10px 22px;
+      border-radius: 8px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      font-size: 0.95rem;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #090d16;
+    }
+    .btn-primary:hover { background: #7dd3fc; }
+    .btn-secondary {
+      background: var(--card-bg);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { border-color: var(--accent); }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 24px;
+      margin-bottom: 48px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px;
+    }
+    .card h3 {
+      font-size: 1.2rem;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+    .card p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+    .section-title {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+    }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      padding: 18px;
+      border-radius: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+      overflow-x: auto;
+      color: #e2e8f0;
+      margin-bottom: 32px;
+    }
+    code { font-family: 'JetBrains Mono', monospace; color: var(--accent); }
+    footer {
+      text-align: center;
+      padding-top: 40px;
+      border-top: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="badge">v0.2.0 (Alpha) &bull; Open Source</div>
+      <h1>SYNAPTIK</h1>
+      <p class="subtitle">Evidence-structure analysis for human iPSC-neuron research: reconciling PubMed literature, SpliceAI, and population genetics to prevent single-lab false positives.</p>
+      <div class="actions">
+        <a href="https://github.com/Fr4n0b/synaptik" class="btn btn-primary">View on GitHub</a>
+        <a href="https://github.com/Fr4n0b/synaptik/blob/main/docs/RUNBOOK.md" class="btn btn-secondary">Runbook Walkthrough</a>
+        <a href="https://github.com/Fr4n0b/synaptik/discussions" class="btn btn-secondary">Discussions Forum</a>
+      </div>
+    </header>
+
+    <div class="grid">
+      <div class="card">
+        <h3>1. Evidence Structure</h3>
+        <p>Operates at the unit of the individual experiment record. Identifies independent lab counts, assay diversity, and leave-one-lab-out stability so single-lab findings never outrank replicated results.</p>
+      </div>
+      <div class="card">
+        <h3>2. Cross-Layer Reconciliation</h3>
+        <p>Directly cross-checks the literature against SpliceAI predictions, gnomAD constraint, ClinVar, and DepMap, surfacing published phenotypes that contradict population genetics.</p>
+      </div>
+      <div class="card">
+        <h3>3. Scientific Correctness</h3>
+        <p>Ships with 114 automated regression tests encoding biological constraints, proactive API-contract monitoring against Europe PMC / PubMed drift, and zero silent data coercion.</p>
+      </div>
+    </div>
+
+    <h2 class="section-title">Quickstart CLI</h2>
+    <pre><code># 1. Install SYNAPTIK
+git clone https://github.com/Fr4n0b/synaptik.git && cd synaptik
+pip install -e .
+
+# 2. Explore synthetic knowledge base
+synaptik demo --db data/demo.db
+
+# 3. Analyze phenotype associations with leave-one-out robustness
+synaptik phenotype "SYN1 puncta density" --db data/demo.db -v
+
+# 4. Launch local Flask web interface
+synaptik ui --db data/demo.db
+# Serving at http://127.0.0.1:8420</code></pre>
+
+    <h2 class="section-title">Python API</h2>
+    <pre><code>from synaptik.store import Store
+from synaptik.analyst import Analyst
+from synaptik.schema import Direction
+
+analyst = Analyst(Store("data/synaptik.db"))
+result = analyst.analyze_phenotype("SYN1 puncta density", direction=Direction.DECREASE)
+
+for assoc in result.strong_only():
+    print(assoc.pathway_label, f"{assoc.n_labs} independent labs", assoc.confidence_tier())</code></pre>
+
+    <footer>
+      <p>Developed for translational neurology and cellular physiology research.</p>
+      <p>Maintained by <a href="https://github.com/Fr4n0b">Francesco Nobile</a> &bull; Center for Genomic Medicine, MGH / Harvard Medical School & University of Pavia</p>
+    </footer>
+  </div>
+</body>
+</html>
