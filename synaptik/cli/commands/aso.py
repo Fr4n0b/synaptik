@@ -58,7 +58,7 @@ def cmd_aso(args) -> int:
         return 0
 
     header(f"Top {len(res.candidates)} Synthesis-Ready ASO Candidates")
-    print(f"  {'Rank':<5s} {'ASO Sequence (5\'->3\')':<24s} {'Tm (C)':>7s} {'dG_37':>8s} {'GC%':>6s} {'Score':>7s} {'IDT Order Format'}")
+    print(f"  {'Rank':<5s} {'ASO Sequence (5->3)':<24s} {'Tm (C)':>7s} {'dG_37':>8s} {'GC%':>6s} {'Score':>7s}  IDT Order Format")
     for rank, c in enumerate(res.candidates, start=1):
         score_fmt = Fmt.green(f"{c.composite_score:5.1f}") if c.composite_score >= 80 else f"{c.composite_score:5.1f}"
         print(f"  #{rank:<4d} {c.oligo_sequence_5_to_3:<24s} {c.melting_temp_c:7.1f} {c.gibbs_free_energy_37c:8.2f} {c.gc_content_pct:5.1f}% {score_fmt:>7s} {c.vendor_idt_format}")
