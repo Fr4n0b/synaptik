@@ -2,6 +2,22 @@
 
 All notable changes to SYNAPTIK are recorded here.
 
+## 0.5.0 — 2026-11-12
+
+### Added
+- **`synaptik simulate` — Causal Genomic Counterfactual Simulator**:
+  - In silico genetic perturbation engine simulating therapeutic interventions (knockdown, knockout, cDNA overexpression, and ASO steric blocking) on diseased neuronal transcriptomic vectors (`synaptik/simulate/counterfactual.py`).
+  - Grounded in human iPSC-neuron functional genomics, CRISPRi/a, and Perturb-seq benchmarks (Tian et al. Neuron 2019, Replogle et al. Cell 2022).
+  - Evaluates therapeutic efficacy via three core metrics:
+    1. **Vector Rescue Efficiency ($\%$)**: Euclidean norm reduction across multi-dimensional disease state vectors.
+    2. **Cosine Directional Alignment ($\cos \theta$)**: Directional alignment against the inverted disease vector ($\vec{v}_{\text{rescue}} \cdot (-\vec{v}_{\text{disease}})$).
+    3. **Collateral Toxicity Index**: Monitors off-target disruption of core neural housekeeping and pan-essential genes (*ACTB*, *GAPDH*, *TUBB3*, *POLR2A*, *RPS6*, *SNAP25*).
+  - Automated detection of lethal and toxic counterfactuals: identifies pan-essential common lethal targets (DepMap) and toxic aggregate phenotypes (e.g. *TARDBP* overexpression, Barmada et al. J Neurosci 2010).
+  - High-throughput therapeutic screen (`--screen`): screens and ranks cataloged perturbation targets against disease baseline vectors (e.g. ALS, FTD, AD), surfacing top viable candidates (*STMN2* ASO block, *ATXN2* knockdown, *UNC13A* ASO block, *PIKFYVE* knockdown).
+  - CLI command `synaptik simulate --disease <DISEASE> [--target <GENE> | --screen] [--intervention <TYPE>] [--alpha <FLOAT>] [--json]`.
+  - Python API workflows: `simulate_intervention()`, `screen_counterfactual_targets()`, and `simulation_result_to_dict()` in `synaptik/workflows.py`.
+  - Dedicated regression test suite [tests/test_simulation.py](file:///c:/Users/frano/OneDrive/Desktop/Virtual_neuron/tests/test_simulation.py) with 24 checks (300 platform checks total across 5 test suites).
+
 ## 0.4.1 — 2026-11-12
 
 ### Added

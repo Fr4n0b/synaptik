@@ -122,6 +122,9 @@ says why.
 - **In silico ASO engineering pipeline** (`synaptik aso`): nearest-neighbor thermodynamics ($\Delta H^\circ, \Delta S^\circ, \Delta G_{37}^\circ, T_m$),
   biophysical liability filters (G-quadruplex, poly-T/U, hairpins), whole-transcriptome neural off-target
   screening, and synthesis-ready order specifications (2'-MOE/PS splice-switching oligos and 5-10-5 gapmers)
+- **Causal genomic counterfactual simulator** (`synaptik simulate`): in silico perturbation engine (knockdown,
+  knockout, overexpression, ASO steric blocking) evaluating rescue efficiency, directional cosine alignment,
+  and collateral neural toxicity against diseased neuronal vectors (ALS, FTD, AD), with high-throughput target screening
 - **Dish-to-brain human post-mortem snRNA-seq bridge** (`synaptik translate`): reconciles dish findings against
   human post-mortem single-nucleus transcriptomic disease atlases (ALS NYGC Consortium, SEA-AD Alzheimer's, FTD),
   evaluates cryptic exon inclusion pathology (*STMN2*, *UNC13A*), maps cell-type specificity (upper/lower motor neurons,
@@ -224,6 +227,10 @@ synaptik benchmark --spliceai
 # Design synthesis-ready therapeutic antisense oligonucleotides (ASOs)
 synaptik aso --sequence TTCTGTAACAGTTTTTGTTTTTTCAGGTGAGTATTCAGGT --gene STMN2 --mode splice_switch
 
+# Simulate causal genetic perturbations and screen therapeutic rescue targets
+synaptik simulate --disease als --target ATXN2 --intervention knockdown
+synaptik simulate --disease als --screen
+
 # Bridge in vitro dish findings to human post-mortem single-cell brain atlases
 synaptik translate --splicing voila_majiq.tsv --disease als
 synaptik translate --genes STMN2 UNC13A TARDBP --disease als
@@ -294,6 +301,7 @@ synaptik/
   omics/       gnomAD, ClinVar, DepMap, expression evidence sources
   drug/        ChEMBL / Open Targets, mechanism-direction matching, CNS profiling, ASO engineering
   translate/   dish-to-brain human post-mortem single-cell atlas concordance
+  simulate/    causal genomic counterfactual simulator & therapeutic target screening
   cli/         command-line interface
   ui/          Flask web interface
 ```
@@ -335,7 +343,7 @@ on output:
   report.** Design briefs show a range of assumed CVs; supply your own with
   `--cv` for a real estimate, and use `--rho` for paired isogenic designs.
 
-The test suite (276 checks across 4 suites) encodes the properties that make output
+The test suite (300 checks across 5 suites) encodes the properties that make output
 trustworthy. If it fails, the output should not be used.
 
 ---
@@ -346,6 +354,7 @@ trustworthy. If it fails, the output should not be used.
 - [x] In silico ASO engineering pipeline for splice-switching and gapmers (`synaptik aso`)
 - [x] Validate the SpliceAI adapter against a benchmark set of published splice variants (`synaptik benchmark --spliceai`)
 - [x] Dish-to-brain human post-mortem single-nucleus RNA-seq translational bridge (`synaptik translate`)
+- [x] Causal Genomic Counterfactual Simulator: in silico knockouts & rescue phenotype modeling (`synaptik simulate`)
 - [ ] Live-API integration tests in CI on a weekly schedule
 - [ ] Pangolin integration for tissue-aware splice prediction
 - [ ] Manual-curation interface for research-group clustering
@@ -356,7 +365,6 @@ trustworthy. If it fails, the output should not be used.
       tables) so a lab's own unpublished results can be reconciled against the literature
 - [x] Native parsers for MAJIQ (VOILA) and LeafCutter output with multi-junction and cluster coordinate handling
 - [x] Paired-design power analysis for isogenic iPSC disease modeling (exact noncentral-$t$ across $\rho$)
-- [ ] Causal Genomic Counterfactual Simulator: Perturb-seq in silico knockouts & rescue phenotype modeling
 - [ ] Fluid Biomarker Matching Panel: mapping in vitro phenotypic severity to patient CSF/plasma NfL trajectories
 - [ ] Cell-type-resolved expression (Allen Brain Atlas, iPSC-neuron scRNA-seq atlases)
 - [ ] LINCS / CMap perturbation signatures as an additional functional evidence class

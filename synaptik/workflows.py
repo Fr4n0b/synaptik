@@ -297,3 +297,58 @@ def translate_result_to_dict(res: TranslationalConcordanceResult) -> dict:
         "recommendations": res.recommendations,
         "gene_calls": [asdict(c) for c in res.gene_calls],
     }
+
+
+def simulate_intervention(
+    disease: str,
+    target_gene: str,
+    intervention: str = "knockdown",
+    efficacy_alpha: float = 0.8,
+) -> dict:
+    """Run in silico counterfactual rescue simulation."""
+    from .simulate.counterfactual import CounterfactualSimulator, InterventionType
+    simulator = CounterfactualSimulator()
+    try:
+        itype = InterventionType(intervention.lower().strip())
+    except ValueError:
+        itype = InterventionType.KNOCKDOWN
+
+    res = simulator.simulate(
+        disease=disease,
+        target_gene=target_gene,
+        intervention=itype,
+        efficacy_alpha=efficacy_alpha,
+    )
+    return simulation_result_to_dict(res)
+
+
+def screen_counterfactual_targets(
+    disease: str,
+    efficacy_alpha: float = 0.8,
+) -> list[dict]:
+    """Screen and rank all perturbation targets for therapeutic rescue."""
+    from .simulate.counterfactual import CounterfactualSimulator
+    simulator = CounterfactualSimulator()
+    results = simulator.screen(disease=disease, efficacy_alpha=efficacy_alpha)
+    return [simulation_result_to_dict(r) for r in results]
+
+
+def simulation_result_to_dict(res) -> dict:
+    return {
+        "disease": res.disease,
+        "target_gene": res.target_gene,
+        "intervention": res.intervention.value,
+        "efficacy_alpha": res.efficacy_alpha,
+        "disease_magnitude": res.disease_magnitude,
+        "post_intervention_magnitude": res.post_intervention_magnitude,
+        "rescue_efficiency_pct": res.rescue_efficiency_pct,
+        "cosine_rescue_alignment": res.cosine_rescue_alignment,
+        "collateral_toxicity_index": res.collateral_toxicity_index,
+        "composite_rescue_score": res.composite_rescue_score,
+        "is_clinically_viable": res.is_clinically_viable,
+        "verdict": res.verdict,
+        "key_gene_trajectories": res.key_gene_trajectories,
+        "pathway_impacts": res.pathway_impacts,
+        "recommendations": res.recommendations,
+    }
+

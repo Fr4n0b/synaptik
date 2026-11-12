@@ -20,6 +20,10 @@ echo "=== human post-mortem single-cell translational bridge ==="
 python3 -m tests.test_translation
 
 echo
+echo "=== causal genomic counterfactual simulation suite ==="
+python3 -m tests.test_simulation
+
+echo
 echo "=== API contract self-test (offline) ==="
 python3 -m synaptik.ingest.contracts
 
@@ -42,6 +46,8 @@ for cmd in \
   "aso --sequence TTCTGTAACAGTTTTTGTTTTTTCAGGTGAGTATTCAGGT --gene STMN2" \
   "translate --splicing examples/voila_majiq.tsv --disease als" \
   "translate --genes STMN2 UNC13A TARDBP --disease als" \
+  "simulate --disease als --target ATXN2" \
+  "simulate --disease als --screen" \
   "contracts --self-test"
 do
   eval "python3 -m synaptik.cli.main $cmd --db '$TMPDB'" > /dev/null 2>&1 \
@@ -62,7 +68,9 @@ for cmd in \
   "benchmark --spliceai" \
   "aso --sequence TTCTGTAACAGTTTTTGTTTTTTCAGGTGAGTATTCAGGT --gene STMN2" \
   "translate --splicing examples/voila_majiq.tsv --disease als" \
-  "translate --genes STMN2 UNC13A TARDBP --disease als"
+  "translate --genes STMN2 UNC13A TARDBP --disease als" \
+  "simulate --disease als --target ATXN2" \
+  "simulate --disease als --screen"
 do
   eval "python3 -m synaptik.cli.main $cmd --db '$TMPDB' --json" \
     | python3 -c "import json,sys; json.load(sys.stdin)" \

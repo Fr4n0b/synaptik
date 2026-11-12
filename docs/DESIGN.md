@@ -483,6 +483,26 @@ Markers for specific human CNS lineages are curated from landmark snRNA-seq data
 - Microglia (*AIF1*, *TMEM119*, *CX3CR1*, *P2RY12*)
 - Oligodendrocytes (*MBP*, *MOG*, *OLIG2*, *PDGFRA*)
 
+## Causal genomic counterfactual simulation
+
+Target identification in neurological disorders is obstructed by complex downstream feedback loops. A mutation or nuclear clearance event (e.g. TDP-43 loss) generates a high-dimensional transcriptomic disease vector $\vec{v}_D$. When evaluating therapeutic hypotheses, researchers need to predict whether a proposed intervention (gene knockdown, knockout, cDNA overexpression, or ASO steric blocking) will reverse the disease vector without triggering collateral toxicity.
+
+**Mathematical formulation.**
+Let $\vec{v}_D \in \mathbb{R}^M$ denote the baseline disease state vector (log2 fold-change relative to healthy isogenic controls) across hallmark neuronal genes.
+Let $\vec{\Delta}_T \in \mathbb{R}^M$ represent the empirical or modeled perturbation response vector for target gene $T$.
+Under an intervention with scaling efficacy $\alpha \in [0, 1]$, the post-intervention state is:
+$$\vec{v}_{\text{post}} = \vec{v}_D + \alpha \cdot \vec{\Delta}_T$$
+
+**Evaluation metrics:**
+1. *Vector Rescue Efficiency (%):* Measures reduction in the Euclidean norm of the disease state:
+   $$\text{Rescue Efficiency} = \frac{\|\vec{v}_D\|_2 - \|\vec{v}_{\text{post}}\|_2}{\|\vec{v}_D\|_2} \times 100$$
+2. *Cosine Directional Alignment:* Measures whether the perturbation vector directly opposes the pathological trajectory:
+   $$\cos \theta = \frac{\vec{\Delta}_T \cdot (-\vec{v}_D)}{\|\vec{\Delta}_T\|_2 \|\vec{v}_D\|_2}$$
+   Where $\cos \theta = +1.0$ indicates perfect counter-pathological rescue, and $\cos \theta < 0$ indicates exacerbation of the disease state.
+3. *Collateral Toxicity Index:* Disruption of unperturbed essential neural housekeeping genes (*ACTB*, *GAPDH*, *TUBB3*, *POLR2A*, *RPS6*, *SNAP25*) is penalized:
+   $$\text{Toxicity} = \text{Risk}_{\text{base}} + 0.25 \sum_{g \in \text{Housekeeping}} |\Delta_g|$$
+4. *Composite Rescue Score:* Grounded in Connectivity Map (CMap) and Perturb-seq standards, weighting directional cosine alignment (55%), magnitude reduction (up to 35%), and deducting collateral toxicity (up to 50%).
+
 ## Phenotype pooling
 
 Records for related phenotype terms are pooled when analysing a phenotype.
