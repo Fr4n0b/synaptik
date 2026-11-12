@@ -6,7 +6,7 @@ authors:
   - family-names: "Nobile"
     given-names: "Francesco"
     affiliation: "Center for Genomic Medicine, Massachusetts General Hospital / Harvard Medical School; University of Pavia"
-version: 0.2.0
+version: 0.3.0
 date-released: 2026-11-12
 license: MIT
 repository-code: "https://github.com/Fr4n0b/synaptik"

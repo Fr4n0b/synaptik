@@ -1012,6 +1012,10 @@ examples:
     s.add_argument("--email")
     s.set_defaults(func=cmd_ui)
 
+    # Newer commands live in cli/commands/ (one module each).
+    from .commands import register_all
+    register_all(sub, common)
+
     s = sub.add_parser("report", parents=[common], help="knowledge base health check")
     s.add_argument("--json", action="store_true")
     s.set_defaults(func=cmd_report)

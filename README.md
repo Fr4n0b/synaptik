@@ -61,6 +61,23 @@ says why.
 
 ## Features
 
+### Your own data, your next experiment
+- **Bring your own data** (`synaptik deposit`): upload an rMATS table or a
+  phenotype CSV and have your unpublished results reconciled against the
+  literature. Each result is called novel, consistent, or contradictory; the
+  report also lists published events you tested but did not reproduce, and
+  tests whether your changed genes are enriched for a splicing regulator's
+  published targets. Data is analysed in memory and never stored.
+- **Experiment design briefs** (`synaptik design`): for a planned experiment,
+  the consensus protocol from the closest prior work, sample sizes in
+  independent differentiations (for the published effect and for a halved,
+  winner's-curse-adjusted one), what a feasible design can detect, the
+  weaknesses a new experiment could fix, and readout-specific pitfalls.
+- **Retrospective benchmark** (`synaptik benchmark`): a temporal hold-out that
+  tests whether the confidence tiers predict later independent replication,
+  against enrichment, p-value, and paper-count baselines, with a bootstrap
+  interval on the difference.
+
 ### Literature layer
 - **Harvesting** from Europe PMC (full text), PubMed, bioRxiv, OpenAlex, and
   Semantic Scholar, with Unpaywall for legal open-access copies and the
@@ -180,6 +197,17 @@ synaptik phenotype "reduced colocalized SYN1/PSD95 puncta" --direction decrease 
 # Where does the evidence disagree?
 synaptik gene SCN2A
 
+# How should I run my experiment? (protocol, sample size, pitfalls)
+synaptik design --model ipsc_neuron_ngn2 --div 21 --target SCN2A \
+    --assay imaging_synaptic_puncta --cv 0.25
+
+# Which of MY results are new, confirmed, or contradicted?
+synaptik deposit splicing SE.MATS.JC.txt --perturbed sample1
+synaptik deposit phenotypes my_phenotypes.csv
+
+# Do the confidence tiers hold up on my corpus?
+synaptik benchmark --cutoff 2021
+
 # Do my variants affect splicing, and has anyone shown it?
 synaptik variant "chr2:165991235:G>A" --gene SCN2A --spliceai-vcf scores.vcf.gz
 ```
@@ -276,7 +304,16 @@ on output:
   benchmark variants.** Check a few known splice variants before trusting it at
   scale.
 
-The test suite (114 checks) encodes the properties that make output
+- **The retrospective benchmark has only been run on synthetic data.** Whether
+  evidence-structure ranking beats enrichment or paper count at predicting
+  replication on real literature is an open, testable question; `synaptik
+  benchmark` exists to answer it and reports "no detectable difference" when
+  that is the result.
+- **Sample-size estimates depend on a variability figure papers rarely
+  report.** Design briefs show a range of assumed CVs; supply your own with
+  `--cv` for a real estimate.
+
+The test suite (221 checks) encodes the properties that make output
 trustworthy. If it fails, the output should not be used.
 
 ---
@@ -291,14 +328,17 @@ trustworthy. If it fails, the output should not be used.
 - [ ] Ontology mapping for pathway names (Reactome / GO) with a curated synonym layer
 
 **Medium term**
-- [ ] Ingest of user-deposited datasets (rMATS / MAJIQ outputs, puncta quantification
+- [x] Ingest of user-deposited datasets (rMATS and generic splicing tables, phenotype
       tables) so a lab's own unpublished results can be reconciled against the literature
+- [ ] Native parsers for MAJIQ / LeafCutter output (usable today via the generic table)
+- [ ] Paired-design power analysis from a lab's own pilot data
 - [ ] Cell-type-resolved expression (Allen Brain Atlas, iPSC-neuron scRNA-seq atlases)
 - [ ] LINCS / CMap perturbation signatures as an additional functional evidence class
 - [ ] Shared, versioned knowledge-base snapshots for collaborating labs
 
 **Longer term**
-- [ ] Benchmark: retrospective prediction of findings published after a corpus cutoff
+- [x] Benchmark harness: retrospective prediction of findings published after a corpus cutoff
+- [ ] Run and publish the benchmark on a full real-literature corpus
 - [ ] Extension beyond neurons to other iPSC-derived systems
 
 ---

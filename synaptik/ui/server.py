@@ -22,7 +22,13 @@ from ..ingest.http import PoliteSession
 from ..schema import (
     AssayClass, CellModelClass, Direction, ExperimentQuery, PerturbationType,
 )
+from ..labdata import LabDataError, parse_splicing_table
 from ..store import Store
+from ..workflows import (
+    benchmark_to_dict, deposit_phenotypes, deposit_splicing, design_brief,
+    design_brief_to_dict, phenotype_report_to_dict, run_benchmark,
+    splicing_report_to_dict,
+)
 
 log = logging.getLogger(__name__)
 STATIC_DIR = Path(__file__).parent / "static"
@@ -32,6 +38,9 @@ def create_app(db_path: str, enable_drugs: bool = False,
                contact_email: str | None = None) -> Flask:
     app = Flask(__name__, static_folder=str(STATIC_DIR))
     app.config["DB_PATH"] = db_path
+    # Uploaded tables are parsed in memory; cap them so a stray BAM file
+    # cannot exhaust the server.
+    app.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024
     app.config["ENABLE_DRUGS"] = enable_drugs
     app.config["EMAIL"] = contact_email
 
@@ -111,10 +120,7 @@ def create_app(db_path: str, enable_drugs: bool = False,
         finally:
             an.store.close()
 
-    @app.route("/api/lookup", methods=["POST"])
-    def api_lookup():
-        body = request.get_json(force=True, silent=True) or {}
-
+    def query_from(body: dict) -> ExperimentQuery:
         def enum_or_none(cls, key):
             v = body.get(key)
             if not v:
@@ -124,16 +130,23 @@ def create_app(db_path: str, enable_drugs: bool = False,
             except ValueError:
                 return None
 
-        q = ExperimentQuery(
+        return ExperimentQuery(
             cell_model_class=enum_or_none(CellModelClass, "model"),
             days_in_vitro=_int_or_none(body.get("div")),
             perturbation_type=enum_or_none(PerturbationType, "perturbation"),
             perturbation_target=(body.get("target") or "").strip() or None,
             variant_hgvs=(body.get("variant") or "").strip() or None,
             assay_class=enum_or_none(AssayClass, "assay"),
-            markers=[m.strip() for m in (body.get("markers") or []) if m.strip()],
+            markers=[m.strip() for m in (body.get("markers") or [])
+                     if m.strip()],
             phenotype=(body.get("phenotype") or "").strip() or None,
         )
+
+    @app.route("/api/lookup", methods=["POST"])
+    def api_lookup():
+        body = request.get_json(force=True, silent=True) or {}
+
+        q = query_from(body)
         if not any([q.cell_model_class, q.perturbation_target, q.assay_class,
                     q.phenotype, q.variant_hgvs]):
             return jsonify({"error": "specify at least one search dimension"}), 400
@@ -154,6 +167,93 @@ def create_app(db_path: str, enable_drugs: bool = False,
             })
         finally:
             an.store.close()
+
+    @app.route("/api/design", methods=["POST"])
+    def api_design():
+        body = request.get_json(force=True, silent=True) or {}
+        q = query_from(body)
+        if not any([q.cell_model_class, q.perturbation_target, q.assay_class,
+                    q.phenotype, q.variant_hgvs]):
+            return jsonify({"error": "describe the experiment first: give at "
+                                     "least a target, assay or readout"}), 400
+        cv = None
+        if body.get("cv") not in (None, ""):
+            try:
+                cv = float(body["cv"])
+            except (TypeError, ValueError):
+                return jsonify({"error": "CV must be a number"}), 400
+            if cv > 2:      # entered as a percentage
+                cv = cv / 100.0
+            if not 0 < cv < 2:
+                return jsonify({"error": "CV must be between 0 and 200%"}), 400
+        store = Store(app.config["DB_PATH"])
+        try:
+            return jsonify(design_brief_to_dict(design_brief(store, q, cv=cv)))
+        finally:
+            store.close()
+
+    def _uploaded_text():
+        """Decode an uploaded table in memory. Nothing is written to disk."""
+        f = request.files.get("file")
+        if f is None or not f.filename:
+            return None, None
+        raw = f.read()
+        return f.filename, raw.decode("utf-8-sig", errors="replace")
+
+    @app.route("/api/deposit/splicing", methods=["POST"])
+    def api_deposit_splicing():
+        name, text = _uploaded_text()
+        if text is None:
+            return jsonify({"error": "choose a file to upload"}), 400
+        form = request.form
+        try:
+            max_fdr = float(form.get("fdr") or 0.05)
+            min_dpsi = float(form.get("min_dpsi") or 0.1)
+        except ValueError:
+            return jsonify({"error": "thresholds must be numbers"}), 400
+        try:
+            table = parse_splicing_table(
+                name, perturbed=form.get("perturbed") or "",
+                event_type=form.get("event_type") or None, text=text)
+        except LabDataError as e:
+            return jsonify({"error": str(e)}), 400
+        store = Store(app.config["DB_PATH"])
+        try:
+            rep = deposit_splicing(store, table, max_fdr, min_dpsi)
+            return jsonify(splicing_report_to_dict(rep))
+        finally:
+            store.close()
+
+    @app.route("/api/deposit/phenotypes", methods=["POST"])
+    def api_deposit_phenotypes():
+        name, text = _uploaded_text()
+        if text is None:
+            return jsonify({"error": "choose a file to upload"}), 400
+        store = Store(app.config["DB_PATH"])
+        try:
+            rows, warnings = deposit_phenotypes(store, name, text=text)
+            return jsonify(phenotype_report_to_dict(rows, warnings))
+        except LabDataError as e:
+            return jsonify({"error": str(e)}), 400
+        finally:
+            store.close()
+
+    @app.route("/api/benchmark", methods=["POST"])
+    def api_benchmark():
+        body = request.get_json(force=True, silent=True) or {}
+        store = Store(app.config["DB_PATH"])
+        try:
+            cutoff = _int_or_none(body.get("cutoff"))
+            if cutoff is None:
+                years = [r["year"] for r in store.conn.execute(
+                    "SELECT year FROM records WHERE year IS NOT NULL "
+                    "ORDER BY year")]
+                if not years:
+                    return jsonify({"error": "no dated records"}), 400
+                cutoff = years[int(len(years) * 0.7)]
+            return jsonify(benchmark_to_dict(run_benchmark(store, cutoff)))
+        finally:
+            store.close()
 
     @app.route("/api/splicing", methods=["POST"])
     def api_splicing():
@@ -201,6 +301,11 @@ def create_app(db_path: str, enable_drugs: bool = False,
             return jsonify(an.compare_phenotypes(a, b))
         finally:
             an.store.close()
+
+    @app.errorhandler(413)
+    def handle_413(e):
+        return jsonify({"error": "That file is larger than 64 MB. Upload the "
+                                 "results table, not raw data."}), 413
 
     @app.errorhandler(500)
     def handle_500(e):

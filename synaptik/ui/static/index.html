@@ -264,7 +264,8 @@ h3.sec{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform
 
 <nav class="tabs" role="tablist">
   <button class="tab" role="tab" aria-selected="true" data-panel="phenotype">Phenotype → Pathway</button>
-  <button class="tab" role="tab" aria-selected="false" data-panel="lookup">Experiment Lookup</button>
+  <button class="tab" role="tab" aria-selected="false" data-panel="mydata">My Data</button>
+  <button class="tab" role="tab" aria-selected="false" data-panel="lookup">Lookup &amp; Design</button>
   <button class="tab" role="tab" aria-selected="false" data-panel="splicing">Splicing</button>
   <button class="tab" role="tab" aria-selected="false" data-panel="compare">Cross-check</button>
   <button class="tab" role="tab" aria-selected="false" data-panel="corpus">Corpus</button>
@@ -300,6 +301,50 @@ h3.sec{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform
     pathways the literature associates with it — and how reliably.</div></div>
 </section>
 
+<!-- ================= MY DATA ================= -->
+<section class="panel" id="panel-mydata">
+  <div class="query-bar">
+    <div class="field-grid">
+      <div>
+        <label for="mdKind">What are you uploading?</label>
+        <select id="mdKind">
+          <option value="splicing">Splicing table (rMATS or gene / delta_psi / fdr)</option>
+          <option value="phenotypes">Phenotype table (phenotype, direction)</option>
+        </select>
+      </div>
+      <div style="grid-column:span 2">
+        <label for="mdFile">File (.txt, .tsv, .csv)</label>
+        <input id="mdFile" type="file" accept=".txt,.tsv,.csv,text/plain,text/csv">
+      </div>
+      <div class="md-spl">
+        <label for="mdPert">Which group is the perturbed condition?</label>
+        <select id="mdPert">
+          <option value="">choose — there is no safe default</option>
+          <option value="sample1">rMATS sample 1 (--b1)</option>
+          <option value="sample2">rMATS sample 2 (--b2)</option>
+          <option value="positive">generic table: positive dPSI = more inclusion in perturbed</option>
+          <option value="negative">generic table: positive dPSI = less inclusion in perturbed</option>
+        </select>
+      </div>
+      <div class="md-spl">
+        <label for="mdType">Event type</label>
+        <select id="mdType">
+          <option value="">from file name / column</option>
+          <option>SE</option><option>RI</option><option>A5SS</option><option>A3SS</option><option>MXE</option>
+        </select>
+      </div>
+      <div class="md-spl"><label for="mdFdr">Max FDR</label><input id="mdFdr" type="number" step="0.01" value="0.05"></div>
+      <div class="md-spl"><label for="mdDpsi">Min |dPSI|</label><input id="mdDpsi" type="number" step="0.05" value="0.1"></div>
+    </div>
+    <div class="actions">
+      <button class="run" id="mdRun">Reconcile with literature</button>
+      <span class="hint">Analysed in memory on this machine. Your data is not stored and does not leave it.</span>
+    </div>
+  </div>
+  <div id="mdOut"><div class="empty">Upload your own results to see which are new, which agree
+    with published work, which contradict it, and which published findings you did not reproduce.</div></div>
+</section>
+
 <!-- ================= LOOKUP ================= -->
 <section class="panel" id="panel-lookup">
   <div class="query-bar">
@@ -315,7 +360,12 @@ h3.sec{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform
     </div>
     <div class="actions">
       <button class="run" id="lkRun">Search</button>
-      <span class="hint">Matches are graded; incomparable systems are demoted, not hidden.</span>
+      <button class="ghost" id="dsRun">Design brief</button>
+      <span style="display:inline-flex;align-items:center;gap:6px">
+        <label for="dsCv" style="margin:0">Your CV %</label>
+        <input id="dsCv" type="number" min="1" max="150" placeholder="25" style="width:74px">
+      </span>
+      <span class="hint">Search finds prior work. Design brief turns it into protocol, sample size and pitfalls.</span>
     </div>
   </div>
   <div id="lkOut"><div class="empty">Describe the experiment you are planning.
@@ -625,12 +675,185 @@ function renderLookup(d){
 $('#lkRun').addEventListener('click', async ()=>{
   const out=$('#lkOut'); showLoading(out,'searching…');
   try{
-    renderLookup(await api('/api/lookup',{
-      model:$('#lkModel').value, div:$('#lkDiv').value,
-      perturbation:$('#lkPert').value, target:$('#lkTarget').value,
-      assay:$('#lkAssay').value, phenotype:$('#lkPheno').value,
-      markers:$('#lkMarkers').value.split(',').map(s=>s.trim()).filter(Boolean)
-    }));
+    renderLookup(await api('/api/lookup', lookupBody()));
+  }catch(e){ showError(out,e); }
+});
+
+/* ---------- design brief ---------- */
+function section(out, title){ out.appendChild(el('h3','sec',title)); }
+function renderDesign(d){
+  const out=$('#lkOut'); out.innerHTML='';
+  const r=el('div','readout');
+  const m=el('div','metrics');
+  const M=(k,v)=>{const x=el('div','metric'); x.appendChild(el('b',null,v)); x.append(k); return x;};
+  m.appendChild(M('exact',d.n_exact)); m.appendChild(M('close',d.n_close));
+  m.appendChild(M('independent groups',d.n_labs));
+  if(d.recommended_n_per_group!=null && !d.impractical_unpaired)
+    m.appendChild(M('differentiations / group',d.recommended_n_per_group));
+  r.appendChild(m);
+  r.appendChild(el('div','interp',d.value));
+  r.appendChild(el('div','metric',d.basis));
+  out.appendChild(r);
+
+  const p=d.protocol, pairs=a=>(a||[]).map(x=>`${x[0]} (${x[1]})`).join(', ');
+  const grid=el('div','detail-grid');
+  const D=(k,v)=>{ if(v==null||v==='') return; const c=el('div','detail');
+    c.append(el('dt',null,k), el('dd',null,v)); grid.appendChild(c); };
+  D('maturity', p.div_median!=null ? `DIV ${p.div_median} (${p.div_range[0]}–${p.div_range[1]})` : null);
+  D('differentiation', pairs(p.differentiation));
+  D('co-culture', pairs(p.coculture));
+  D('markers', pairs(p.markers));
+  D('replicates used', p.n_replicates_median!=null ? `median ${p.n_replicates_median} (${p.n_replicates_range[0]}–${p.n_replicates_range[1]})` : null);
+  D('isogenic controls', p.isogenic_fraction!=null ? Math.round(p.isogenic_fraction*100)+'% of prior work' : null);
+  D('direction', d.effects.consensus_direction+' — '+Object.entries(d.effects.direction_counts).map(([k,v])=>`${v} ${k.replace('_',' ')}`).join(', '));
+  D('median effect', d.effects.median_effect_percent!=null ? d.effects.median_effect_percent.toFixed(0)+'% ('+d.effects.n_quantified+' quantified)' : 'not quantified');
+  D('null results', d.effects.n_null_results);
+  if(grid.children.length){ section(out,'how it has been done, and what was found'); out.appendChild(grid); }
+
+  if(d.power.length){
+    section(out,'sample size — independent differentiations per group');
+    const t=el('table','freq');
+    d.power.forEach(x=>{ const tr=el('tr');
+      tr.appendChild(el('td',null,x.n_per_group==null?'>200':x.n_per_group));
+      tr.appendChild(el('td',null,`${Math.abs(x.effect_percent).toFixed(0)}% effect · CV ${Math.round(x.cv*100)}% · ${x.scenario}`));
+      t.appendChild(tr); });
+    out.appendChild(t);
+    out.appendChild(el('div', d.impractical_unpaired?'caveat':'note', d.impractical_unpaired
+      ? '! A realistic effect needs more unpaired differentiations than is practical. '+d.recommended_n_basis
+      : 'Plan for '+d.recommended_n_per_group+' per group. '+d.recommended_n_basis));
+    if(d.detectable_effects.length){
+      out.appendChild(el('div','hint','what a feasible unpaired design can detect: '+
+        d.detectable_effects.map(x=>`n=${x.n_per_group} → ≥${x.min_effect_percent.toFixed(0)}%`).join('  ·  ')));
+    }
+    out.appendChild(el('div','hint','Cells, fields and wells from one differentiation are technical replicates and do not count toward n.'));
+  }
+  if(d.weaknesses.length){ section(out,'weaknesses in the existing evidence');
+    d.weaknesses.forEach(w=>out.appendChild(el('div','caveat','! '+w))); }
+  if(d.recommendations.length){ section(out,'recommendations');
+    d.recommendations.forEach(w=>out.appendChild(el('div','note','→ '+w))); }
+  if(d.pitfalls.length){ section(out,'pitfalls for this readout');
+    d.pitfalls.forEach(w=>{ const c=el('div','match'); c.textContent=w; out.appendChild(c); }); }
+  if(d.key_papers.length){ section(out,'read first');
+    d.key_papers.forEach(w=>out.appendChild(el('div','paper-meta',w))); }
+}
+function lookupBody(){ return {
+  model:$('#lkModel').value, div:$('#lkDiv').value,
+  perturbation:$('#lkPert').value, target:$('#lkTarget').value,
+  assay:$('#lkAssay').value, phenotype:$('#lkPheno').value,
+  markers:$('#lkMarkers').value.split(',').map(s=>s.trim()).filter(Boolean) }; }
+$('#dsRun').addEventListener('click', async ()=>{
+  const out=$('#lkOut'); showLoading(out,'building design brief…');
+  try{ renderDesign(await api('/api/design', Object.assign(lookupBody(), {cv:$('#dsCv').value}))); }
+  catch(e){ showError(out,e); }
+});
+
+/* ---------- my data ---------- */
+const CALL_LABEL = {
+  discordant:'Contradict the literature — check these first',
+  novel:'Novel — no published event in this gene',
+  same_gene_other_event:'Known gene, different event',
+  consistent:'Consistent with published reports',
+  contested:'The literature itself is split'
+};
+const CALL_COLOR = {discordant:'var(--ch-red)', novel:'var(--ch-green)',
+  same_gene_other_event:'var(--ch-amber)', consistent:'var(--ch-cyan)', contested:'var(--ch-amber)'};
+$('#mdKind').addEventListener('change',()=>{
+  const spl = $('#mdKind').value==='splicing';
+  document.querySelectorAll('.md-spl').forEach(n=>n.style.display = spl ? '' : 'none');
+});
+async function upload(path, fields){
+  const fd=new FormData(); Object.entries(fields).forEach(([k,v])=>fd.append(k,v));
+  const r=await fetch(path,{method:'POST',body:fd});
+  const d=await r.json().catch(()=>({error:'Server returned an unreadable response.'}));
+  if(!r.ok) throw new Error(d.error || `Request failed (${r.status}).`);
+  return d;
+}
+function renderSplicingDeposit(d){
+  const out=$('#mdOut'); out.innerHTML='';
+  const r=el('div','readout');
+  const m=el('div','metrics');
+  const M=(k,v)=>{const x=el('div','metric'); x.appendChild(el('b',null,v)); x.append(k); return x;};
+  m.appendChild(M('events',d.n_events)); m.appendChild(M('pass thresholds',d.n_significant));
+  m.appendChild(M('novel',d.counts.novel)); m.appendChild(M('consistent',d.counts.consistent));
+  m.appendChild(M('contradict',d.counts.discordant));
+  m.appendChild(M('not reproduced',d.not_reproduced.length));
+  r.appendChild(m); r.appendChild(el('div','interp',d.summary));
+  r.appendChild(el('div','metric',`${d.format} table · corpus: ${d.corpus_events} published events in ${d.corpus_genes} genes`));
+  out.appendChild(r);
+  (d.warnings||[]).forEach(w=>out.appendChild(el('div','warn','! '+w)));
+
+  ['discordant','novel','same_gene_other_event','consistent'].forEach(call=>{
+    const rows=d.events.filter(e=>e.call===call); if(!rows.length) return;
+    const g=el('div','tier-group');
+    const h=el('div','tier-head',`${CALL_LABEL[call]}  (${rows.length})`);
+    h.style.color=CALL_COLOR[call]; g.appendChild(h);
+    rows.slice(0,25).forEach(e=>{
+      const c=el('div','match');
+      c.appendChild(el('div','match-title',
+        `${e.gene} — ${e.event_type}  dPSI ${(e.delta_psi>0?'+':'')+e.delta_psi.toFixed(2)}  ${e.fdr!=null?'FDR '+fmtP(e.fdr):''}`));
+      c.appendChild(el('div',null,e.note));
+      if(e.n_papers) c.appendChild(el('div','paper-meta',
+        `literature: ${e.n_papers} paper(s), ${e.n_labs} group(s) · ${e.source_ids.slice(0,4).join(', ')}`+
+        (e.regulators_reported.length?` · regulator: ${e.regulators_reported.join(', ')}`:'')));
+      if(e.nmd_risk==='high') c.appendChild(el('div','caveat','! '+e.nmd_note));
+      if(e.aso_feasible && (call==='novel'||call==='discordant')) c.appendChild(el('div','note','ASO: '+e.aso_approach));
+      g.appendChild(c);
+    });
+    if(rows.length>25) g.appendChild(el('div','hint',`… and ${rows.length-25} more (use the CLI with --json for all)`));
+    out.appendChild(g);
+  });
+
+  if(d.regulators.length){
+    section(out,'regulators whose published targets you hit');
+    d.regulators.slice(0,8).forEach(g=>{
+      const c=el('div','rbp');
+      c.appendChild(el('div','rbp-name',g.rbp));
+      c.appendChild(el('div','ev-sub',
+        `${g.targets_changed}/${g.targets_tested} tested targets changed · OR ${g.odds_ratio} · q ${fmtP(g.q_value)} · direction agreement ${g.direction_agreement==null?'n/a':Math.round(g.direction_agreement*100)+'%'}`));
+      c.appendChild(el('div','paper-meta',g.overlap_genes.join(', ')));
+      if(g.canonical_effect) c.appendChild(el('div','paper-meta',g.canonical_effect));
+      (g.caveats||[]).forEach(x=>c.appendChild(el('div','caveat','! '+x)));
+      out.appendChild(c);
+    });
+  }
+  if(d.not_reproduced.length){
+    section(out,'published events you tested but did not see');
+    out.appendChild(el('div','hint','Genes present in your table with no significant change. Genes absent from your table are not listed: absence is not a negative result.'));
+    d.not_reproduced.slice(0,30).forEach(n=>{
+      const c=el('div','match');
+      c.appendChild(el('div','match-title',n.gene));
+      c.appendChild(el('div','paper-meta',
+        `published: ${n.literature_direction} (${n.n_papers} paper(s), ${n.n_labs} group(s)) · your largest dPSI ${n.your_largest_dpsi==null?'n/a':(n.your_largest_dpsi>0?'+':'')+n.your_largest_dpsi.toFixed(2)}`));
+      out.appendChild(c);
+    });
+  }
+}
+function renderPhenotypeDeposit(d){
+  const out=$('#mdOut'); out.innerHTML='';
+  (d.warnings||[]).forEach(w=>out.appendChild(el('div','warn','! '+w)));
+  d.observations.forEach(o=>{
+    const c=el('div','match'); c.style.borderLeft='3px solid '+(CALL_COLOR[o.call]||'var(--line)');
+    c.appendChild(el('div','match-title',`${o.phenotype} — ${o.your_direction.replace('_',' ')}${o.gene?' · '+o.gene:''}`));
+    const chips=el('div','chips'); chips.appendChild(el('span','chip',o.call.replace(/_/g,' ')));
+    if(o.resolved_label) chips.appendChild(el('span','chip','resolved: '+o.resolved_label));
+    c.appendChild(chips);
+    c.appendChild(el('div',null,o.note));
+    if(o.source_ids.length) c.appendChild(el('div','paper-meta',o.source_ids.slice(0,5).join(', ')));
+    out.appendChild(c);
+  });
+}
+$('#mdRun').addEventListener('click', async ()=>{
+  const out=$('#mdOut'); const f=$('#mdFile').files[0];
+  if(!f){ showError(out,new Error('Choose a file first.')); return; }
+  showLoading(out,'reconciling with the literature…');
+  try{
+    if($('#mdKind').value==='splicing'){
+      renderSplicingDeposit(await upload('/api/deposit/splicing',{file:f,
+        perturbed:$('#mdPert').value, event_type:$('#mdType').value,
+        fdr:$('#mdFdr').value, min_dpsi:$('#mdDpsi').value}));
+    } else {
+      renderPhenotypeDeposit(await upload('/api/deposit/phenotypes',{file:f}));
+    }
   }catch(e){ showError(out,e); }
 });
 
@@ -765,6 +988,35 @@ async function loadCorpus(){
     T('most frequent phenotypes',s.top_phenotypes);
     T('most frequent pathways',s.top_pathways);
     T('most prolific groups — check for over-representation',s.most_prolific_labs);
+
+    out.appendChild(el('h3','sec','does the ranking predict later replication?'));
+    const bbar=el('div','actions'); const bb=el('button','ghost','Run retrospective benchmark');
+    bbar.appendChild(bb);
+    bbar.appendChild(el('span','hint','Freezes the corpus at a cutoff year and scores the tiers against what was independently reported afterwards.'));
+    out.appendChild(bbar);
+    const bout=el('div'); out.appendChild(bout);
+    bb.addEventListener('click', async ()=>{
+      showLoading(bout,'running temporal hold-out…');
+      try{
+        const b=await api('/api/benchmark',{}); bout.innerHTML='';
+        const r=el('div','readout'); if(b.underpowered) r.style.borderLeftColor='var(--ch-amber)';
+        r.appendChild(el('div','interp',b.verdict));
+        r.appendChild(el('div','metric',`cutoff ${b.cutoff_year} · ${b.n_records_before} records before, ${b.n_records_after} after · ${b.n_associations} associations, ${b.n_replicated} later replicated`));
+        bout.appendChild(r);
+        const t=el('table','freq');
+        b.rankers.forEach(x=>{ const tr=el('tr');
+          tr.appendChild(el('td',null,x.auroc==null?'—':x.auroc.toFixed(2)));
+          tr.appendChild(el('td',null,`${x.name} — ${x.description}`)); t.appendChild(tr); });
+        bout.appendChild(t);
+        bout.appendChild(el('div','hint','AUROC for predicting later independent replication; 0.5 = chance.'));
+        const t2=el('table','freq');
+        b.tiers.forEach(x=>{ const tr=el('tr');
+          tr.appendChild(el('td',null,Math.round(x.replication_rate*100)+'%'));
+          tr.appendChild(el('td',null,`${x.tier} — ${x.replicated} of ${x.n} later replicated, ${x.contradicted} contradicted`)); t2.appendChild(tr); });
+        bout.appendChild(t2);
+        (b.caveats||[]).forEach(c=>bout.appendChild(el('div','caveat','! '+c)));
+      }catch(e){ showError(bout,e); }
+    });
   }catch(e){ showError(out,e); }
 }
 

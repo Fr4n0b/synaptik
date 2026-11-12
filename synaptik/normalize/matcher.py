@@ -61,6 +61,22 @@ def _token_set_ratio(a: str, b: str) -> float:
     )
 
 
+def _contains_term(text: str, synonym: str) -> bool:
+    """Substring test that respects word boundaries.
+
+    A bare `in` test lets short synonyms match inside unrelated words: "apa"
+    (alternative polyadenylation) inside "capability", "upr" inside
+    "upregulation", "nmd" inside "nmda receptor current". Requiring word
+    boundaries on both sides removes that whole class of false mapping, which
+    otherwise sends records to the wrong phenotype silently.
+    """
+    if synonym not in text:
+        return False
+    return re.search(
+        r"(?<![a-z0-9])" + re.escape(synonym) + r"(?![a-z0-9])", text
+    ) is not None
+
+
 class PhenotypeMatcher:
     """Maps free-text phenotype descriptions onto the controlled vocabulary."""
 
@@ -82,7 +98,7 @@ class PhenotypeMatcher:
         # Substring: find the longest synonym contained in the text
         best_sub, best_len = None, 0
         for syn, tid in self._synonyms:
-            if len(syn) > best_len and syn in n:
+            if len(syn) > best_len and _contains_term(n, syn):
                 best_sub, best_len = tid, len(syn)
         if best_sub:
             coverage = best_len / max(len(n), 1)

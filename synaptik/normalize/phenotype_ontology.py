@@ -30,6 +30,11 @@ class PhenotypeTerm:
     label: str
     synonyms: tuple[str, ...] = ()
     measurement_axis: str = ""
+    # Terms sharing a pool_group are pooled when analysing a phenotype. This
+    # is an explicit, curated statement that they measure the same biological
+    # quantity. It is deliberately NOT derived from measurement_axis: mEPSC
+    # and mIPSC frequency are both event rates, and are not the same thing.
+    pool_group: str = ""
     go_xref: tuple[str, ...] = ()
     hpo_xref: tuple[str, ...] = ()
     typical_assays: tuple[str, ...] = ()
@@ -49,9 +54,10 @@ TERMS: list[PhenotypeTerm] = [
             "presynaptic puncta", "vglut1 puncta", "vglut1 puncta density",
             "synaptophysin puncta", "syp puncta", "bassoon puncta",
             "presynaptic terminal density", "presynaptic marker density",
-            "synaptic vesicle protein puncta", "vgat puncta",
+            "synaptic vesicle protein puncta",
         ),
         measurement_axis="puncta_count_per_length",
+        pool_group="excitatory_synapse_number",
         go_xref=("GO:0048786",),  # presynaptic active zone
         typical_assays=("imaging_synaptic_puncta",),
         parent="SYN:0000",
@@ -60,10 +66,11 @@ TERMS: list[PhenotypeTerm] = [
         "SYN:0002", "postsynaptic puncta density",
         (
             "psd95 puncta", "psd-95 puncta density", "homer1 puncta",
-            "shank3 puncta", "gephyrin puncta", "postsynaptic density puncta",
+            "shank3 puncta", "postsynaptic density puncta",
             "postsynaptic marker density", "dlg4 puncta", "homer puncta density",
         ),
         measurement_axis="puncta_count_per_length",
+        pool_group="excitatory_synapse_number",
         go_xref=("GO:0014069",),  # postsynaptic density
         typical_assays=("imaging_synaptic_puncta",),
         parent="SYN:0000",
@@ -78,6 +85,7 @@ TERMS: list[PhenotypeTerm] = [
             "colocalized pre- and postsynaptic puncta",
         ),
         measurement_axis="puncta_count_per_length",
+        pool_group="excitatory_synapse_number",
         go_xref=("GO:0045202",),  # synapse
         typical_assays=("imaging_synaptic_puncta",),
         parent="SYN:0000",
@@ -90,6 +98,31 @@ TERMS: list[PhenotypeTerm] = [
         measurement_axis="puncta_morphometry",
         typical_assays=("imaging_synaptic_puncta",),
         parent="SYN:0000",
+    ),
+    PhenotypeTerm(
+        "SYN:0005", "inhibitory synaptic puncta density",
+        ("vgat puncta", "vgat puncta density", "gephyrin puncta",
+         "gephyrin puncta density", "gad65 puncta", "gad67 puncta",
+         "inhibitory synapse density", "inhibitory synapse number",
+         "gabaergic synapse density", "inhibitory puncta"),
+        measurement_axis="puncta_count_per_length",
+        go_xref=("GO:0060077",),  # inhibitory synapse
+        typical_assays=("imaging_synaptic_puncta",),
+        parent="SYN:0000",
+        notes="Kept separate from excitatory puncta: the two can move in "
+              "opposite directions and pooling them hides E/I imbalance.",
+    ),
+    PhenotypeTerm(
+        "SYN:0006", "synaptic marker colocalization coefficient",
+        ("manders coefficient", "mander's coefficient", "manders overlap",
+         "manders colocalization", "pearson colocalization",
+         "pearson's correlation coefficient", "colocalization coefficient",
+         "colocalisation coefficient", "overlap coefficient"),
+        measurement_axis="colocalization_coefficient",
+        typical_assays=("imaging_synaptic_puncta",),
+        parent="SYN:0000",
+        notes="An intensity-correlation measure, not a synapse count; "
+              "sensitive to background and thresholding.",
     ),
     PhenotypeTerm(
         "SYN:0000", "synaptic phenotype", ("synaptic abnormality",),
@@ -124,22 +157,111 @@ TERMS: list[PhenotypeTerm] = [
         typical_assays=("electrophys_patch",),
         parent="EPHYS:0000",
     ),
+    # ---- multielectrode array ----
     PhenotypeTerm(
         "EPHYS:0004", "network burst frequency",
-        ("burst frequency", "network burst rate", "bursting frequency",
-         "mea burst frequency", "network activity", "spike rate",
-         "firing rate", "mean firing rate", "weighted mean firing rate"),
+        ("network burst frequency", "network burst rate", "burst frequency",
+         "bursting frequency", "mea burst frequency", "burst rate",
+         "number of network bursts", "network bursts per minute"),
         measurement_axis="event_rate",
         typical_assays=("electrophys_mea",),
         parent="EPHYS:0000",
     ),
     PhenotypeTerm(
+        "EPHYS:0006", "mean firing rate",
+        ("mean firing rate", "weighted mean firing rate", "firing rate",
+         "spike rate", "spike frequency", "spontaneous firing rate",
+         "spontaneous spiking"),
+        measurement_axis="event_rate",
+        typical_assays=("electrophys_mea",),
+        parent="EPHYS:0000",
+        notes="Depends strongly on plating density and age; compare the "
+              "same DIV and normalise to active electrodes.",
+    ),
+    PhenotypeTerm(
+        "EPHYS:0007", "burst duration",
+        ("burst duration", "network burst duration", "mean burst duration",
+         "burst length"),
+        measurement_axis="duration",
+        typical_assays=("electrophys_mea",),
+        parent="EPHYS:0000",
+    ),
+    PhenotypeTerm(
+        "EPHYS:0008", "network synchrony",
+        ("synchrony index", "network synchrony", "synchronicity",
+         "synchrony", "area under cross-correlation",
+         "area under normalized cross-correlation", "network synchronization"),
+        measurement_axis="synchrony_index",
+        typical_assays=("electrophys_mea", "calcium_imaging"),
+        parent="EPHYS:0000",
+    ),
+    # ---- intrinsic properties (patch-clamp) ----
+    # These are separate terms on purpose. They were once pooled as
+    # "intrinsic excitability", but their directions mean opposite things: a
+    # HIGHER rheobase is LOWER excitability, a higher input resistance is
+    # higher excitability. Pooling them makes direction consistency
+    # meaningless.
+    PhenotypeTerm(
         "EPHYS:0005", "intrinsic excitability",
-        ("excitability", "rheobase", "action potential threshold",
-         "input resistance", "resting membrane potential", "ap firing"),
-        measurement_axis="intrinsic_property",
+        ("intrinsic excitability", "excitability", "ap firing",
+         "action potential firing", "evoked firing",
+         "evoked action potentials", "number of action potentials",
+         "f-i curve", "firing frequency upon current injection"),
+        measurement_axis="evoked_firing",
         typical_assays=("electrophys_patch",),
         parent="EPHYS:0000",
+    ),
+    PhenotypeTerm(
+        "EPHYS:0009", "resting membrane potential",
+        ("resting membrane potential", "resting potential",
+         "membrane potential"),
+        measurement_axis="voltage",
+        typical_assays=("electrophys_patch",),
+        parent="EPHYS:0000",
+        notes="'Increase' is ambiguous for a negative quantity; check "
+              "whether a paper means depolarised or hyperpolarised.",
+    ),
+    PhenotypeTerm(
+        "EPHYS:0010", "input resistance",
+        ("input resistance", "membrane resistance"),
+        measurement_axis="resistance",
+        typical_assays=("electrophys_patch",),
+        parent="EPHYS:0000",
+        notes="Falls as neurons mature; a difference between lines can "
+              "reflect a maturation offset.",
+    ),
+    PhenotypeTerm(
+        "EPHYS:0011", "rheobase",
+        ("rheobase", "rheobase current", "current threshold",
+         "minimum current to elicit an action potential"),
+        measurement_axis="current",
+        typical_assays=("electrophys_patch",),
+        parent="EPHYS:0000",
+        notes="Higher rheobase means LOWER excitability.",
+    ),
+    PhenotypeTerm(
+        "EPHYS:0012", "action potential threshold",
+        ("action potential threshold", "ap threshold", "spike threshold",
+         "voltage threshold"),
+        measurement_axis="voltage",
+        typical_assays=("electrophys_patch",),
+        parent="EPHYS:0000",
+    ),
+    PhenotypeTerm(
+        "EPHYS:0013", "mIPSC amplitude",
+        ("mipsc amplitude", "miniature ipsc amplitude", "sipsc amplitude"),
+        measurement_axis="event_amplitude",
+        typical_assays=("electrophys_patch",),
+        parent="EPHYS:0000",
+    ),
+    PhenotypeTerm(
+        "EPHYS:0014", "membrane capacitance",
+        ("membrane capacitance", "cell capacitance", "whole-cell capacitance"),
+        measurement_axis="capacitance",
+        typical_assays=("electrophys_patch",),
+        parent="EPHYS:0000",
+        notes="A proxy for cell size; changes confound current-density "
+              "comparisons.",
     ),
     PhenotypeTerm(
         "EPHYS:0000", "electrophysiological phenotype", ("ephys phenotype",),
@@ -168,11 +290,25 @@ TERMS: list[PhenotypeTerm] = [
     PhenotypeTerm(
         "MORPH:0003", "dendritic spine density",
         ("spine density", "spine number", "dendritic spines",
-         "mushroom spine density", "spine morphology"),
+         "dendritic spine number", "spines per 10"),
         measurement_axis="puncta_count_per_length",
         go_xref=("GO:0060996",),
         typical_assays=("imaging_morphology",),
         parent="MORPH:0000",
+    ),
+    PhenotypeTerm(
+        "MORPH:0005", "dendritic spine morphology",
+        ("spine morphology", "spine morphometry", "mushroom spines",
+         "mushroom spine density", "mushroom spine fraction",
+         "stubby spines", "thin spines", "filopodia", "spine head width",
+         "spine head diameter", "spine length", "spine maturity",
+         "spine classification"),
+        measurement_axis="spine_morphometry",
+        go_xref=("GO:0060997",),  # dendritic spine morphogenesis
+        typical_assays=("imaging_morphology",),
+        parent="MORPH:0000",
+        notes="Subtype distribution, not number. Classic spine classes are "
+              "rare in iPSC-derived neurons before late maturity.",
     ),
     PhenotypeTerm(
         "MORPH:0004", "soma size",
@@ -368,13 +504,15 @@ def ancestors(term_id: str) -> list[str]:
 
 
 def commensurable(a: str, b: str) -> bool:
-    """True if two phenotype terms measure the same physical quantity.
+    """True if two phenotype terms are curated as the same quantity.
 
-    Used to decide whether records can be pooled. Two terms on the same
-    measurement axis are comparable in direction; two on different axes are
-    not, even if biologically related.
+    Decided by an explicit `pool_group`, never by measurement axis. Sharing an
+    axis only means two things are counted the same way: mEPSC and mIPSC
+    frequency are both event rates, synaptic puncta and dendritic spines are
+    both counts per length, and pooling either pair would merge distinct
+    biology and corrupt the direction-consistency statistics.
     """
     ta, tb = BY_ID.get(a), BY_ID.get(b)
     if not ta or not tb:
         return False
-    return bool(ta.measurement_axis) and ta.measurement_axis == tb.measurement_axis
+    return bool(ta.pool_group) and ta.pool_group == tb.pool_group

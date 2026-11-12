@@ -177,7 +177,7 @@ class Analyst:
             keys.append(term.ontology_id)
             if include_ancestors:
                 keys.extend(ancestors(term.ontology_id))
-            # Sibling terms on the same measurement axis are commensurable and
+            # Terms curated into the same pool_group are commensurable and
             # would otherwise fragment the evidence across near-synonyms.
             for tid in BY_ID:
                 if tid not in keys and commensurable(term.ontology_id, tid):

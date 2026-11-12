@@ -349,6 +349,100 @@ meaning.
 
 ---
 
+## Lab data deposit
+
+`synaptik deposit` reconciles a lab's own results against the corpus. Four
+decisions shape it:
+
+**The sign convention is never guessed.** rMATS reports sample 1 minus
+sample 2. Which is the mutant depends on argument order at run time, which
+the table does not record. A default would be right half the time and
+silently invert the biology the other half, so the perturbed group is a
+required argument.
+
+**Tested-and-unchanged is not the same as not-tested.** The "not reproduced"
+list contains only genes present in the user's table. A gene absent from an
+rMATS table was not expressed or had too few junction reads; reporting it as
+a failed replication would be a false negative result.
+
+**Regulator enrichment uses the user's tested genes as background.** Against
+a genome background, any list of neuronally expressed genes looks enriched
+for any neuronal splicing regulator. The Fisher test is therefore: of this
+regulator's published targets that were tested in this table, how many
+changed, versus the rest of the table.
+
+**Frame consequences come from the table, not from a heuristic.** The
+literature-side heuristic treats increased exon inclusion as a probable
+cryptic exon. Applied to a lab's table it flagged every cassette exon as an
+NMD risk. With coordinates available the question has a direct answer:
+exon length modulo three.
+
+Matching is at gene plus event-class level because papers rarely publish
+coordinates. A "consistent" call therefore means the same class of event in
+the same gene and direction, not the same exon, and the output says so.
+
+## Design briefs
+
+**Replicates are differentiations.** Every sample size is in independent
+differentiations. Pseudoreplication (treating cells or fields as n) is the
+most common statistical error in this literature, and a brief that printed
+"n = 40 cells" would entrench it.
+
+**Power is computed for a halved effect as well as the published one.**
+Significant results from small studies over-estimate effects. Halving is a
+blunt correction, not an estimate; it is used because it is transparent and
+errs in the safe direction.
+
+**The CV is shown as a range unless the user supplies one.** Papers almost
+never report between-differentiation variability, so any single value would
+be invented. The brief shows 15%, 25% and 35% and labels the recommendation
+as resting on an assumption.
+
+**Impractical answers are converted into advice.** When the unpaired design
+needs more differentiations than a lab can run, the brief recommends pairing
+and reports the minimum detectable effect at feasible n, so that a null
+result can be interpreted rather than merely under-powered.
+
+Power uses the exact noncentral t distribution; the suite checks it against
+the standard table values (64, 26, 17 and 6 per group for d = 0.5, 0.8, 1
+and 2).
+
+## Retrospective benchmark
+
+The tool's central claim is empirical: associations it rates highly should
+hold up better than ones it does not. `synaptik benchmark` tests that with a
+temporal hold-out.
+
+**Outcome.** An association counts as replicated if, after the cutoff, a
+research group that did not contribute to it before reports the same pathway
+for the same phenotype in the same direction. The same group publishing
+again does not count.
+
+**Baselines.** Enrichment, p-value, and raw record count. The last matters
+most: attention is self-reinforcing, so "more papers" predicts "more papers"
+regardless of evidence quality.
+
+**No verdict without an interval.** The difference in AUROC against the best
+baseline carries a paired bootstrap interval, and "better" or "worse" is only
+stated when it excludes zero.
+
+**Known limits.** Re-observation is a proxy for truth. Evidence weights are
+computed as of the cutoff year, but retraction status necessarily reflects
+today. The benchmark has so far only been run on the synthetic demo corpus,
+where publication years are random and no signal exists; the result there is
+correctly "no detectable difference".
+
+## Phenotype pooling
+
+Records for related phenotype terms are pooled when analysing a phenotype.
+Until 0.3.0 pooling was derived from a shared measurement axis, which merged
+mEPSC with mIPSC frequency and synaptic puncta with dendritic spines. Pooling
+is now an explicit, curated `pool_group` on each term. Adding a term to a
+group is a scientific claim that the two measure the same quantity and should
+be reviewed as one.
+
+---
+
 ## What would need to change for this to be more than hypothesis prioritisation
 
 Honest answer: quite a lot, and some of it is not achievable from literature

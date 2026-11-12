@@ -68,7 +68,7 @@ You should see 14 commands listed (`init`, `demo`, `preflight`, `contracts`,
 ./run_tests.sh
 ```
 
-Expect `All tests passed.` — 114 checks.
+Expect `All tests passed.` — 221 checks.
 
 This matters: the suite asserts the properties that make output trustworthy
 (a single-lab artifact with 12× higher enrichment must not outrank a
@@ -672,6 +672,131 @@ nobody has done.
 > **Caveat that ships with every `predicted_only` result:** absence from your
 > corpus is not absence from the literature. The paper may be paywalled or not
 > harvested. **Check PubMed manually before claiming novelty.**
+
+---
+
+# PART 7 — Your own data and your next experiment
+
+Everything in this part runs locally and instantly. Uploaded data is analysed
+in memory and never stored.
+
+## 7.1 Design an experiment before you run it
+
+```bash
+synaptik design --model ipsc_neuron_ngn2 --div 21 \
+    --perturbation mutation_patient --target SCN2A \
+    --assay imaging_synaptic_puncta --markers SYN1 PSD95
+```
+
+The brief has six parts:
+
+| Section | What it tells you |
+|---|---|
+| **What your experiment would add** | unexplored / first independent replication / tie-breaker / confirmatory |
+| **How it has been done** | DIV, differentiation, co-culture, markers, replicate numbers from the closest prior work |
+| **What was found** | direction, median effect size, how many null results |
+| **Sample size** | independent differentiations per group, for the published effect and a halved one |
+| **Weaknesses / recommendations** | what a new experiment could fix |
+| **Pitfalls** | readout-specific ways the assay goes wrong |
+
+Three things to know about the sample-size section:
+
+- **n is differentiations, not cells.** Three hundred neurons from one
+  differentiation are one biological replicate.
+- **Plan on the halved effect.** Small published studies over-estimate effect
+  sizes; powering on the published median under-powers your study.
+- **The CV is an assumption until you supply yours.** Papers rarely report
+  between-differentiation variability. Run a pilot, compute the CV
+  (SD / mean across differentiations), and re-run with `--cv 0.22`.
+
+If the required n is impractical, the brief says so and recommends a paired
+design (mutant and isogenic control differentiated side by side) instead of
+printing a number nobody will run. It also states the smallest effect a
+feasible design can detect, so a null result stays interpretable.
+
+## 7.2 Reconcile your splicing results with the literature
+
+```bash
+synaptik deposit splicing path/to/SE.MATS.JC.txt --perturbed sample1
+```
+
+**`--perturbed` is required and has no default.** rMATS reports
+`IncLevelDifference = sample 1 − sample 2`, so the sign depends on the order
+you gave `--b1` and `--b2`. If your mutant was `--b1`, use `sample1`. Getting
+this wrong inverts every conclusion, so the tool refuses to guess.
+
+Try it on the synthetic example first:
+
+```bash
+synaptik deposit splicing examples/SE.MATS.JC.txt --perturbed sample1 --db data/demo.db
+```
+
+The report, in the order you should read it:
+
+1. **Contradict the literature.** Published reports show the opposite
+   direction. Check the perturbed group, genome build, and whether it is the
+   same exon before interpreting.
+2. **Novel.** No published splicing event in that gene *in your corpus*.
+   Check PubMed before claiming novelty.
+3. **Regulators whose published targets you hit.** A Fisher test against the
+   genes tested in your table. This is how "my changed genes look like TDP-43
+   loss" becomes a statistic rather than an impression.
+4. **Published events you tested but did not see.** Only genes present in
+   your table are listed; a gene missing from the table is not a negative
+   result.
+5. **Consistent.** Confirmations.
+
+Each event also gets a reading-frame call from its own coordinates: an exon
+whose length is not a multiple of three shifts the frame, so measure protein
+as well as transcript.
+
+Other tools (MAJIQ, LeafCutter, SUPPA) work through a generic table with
+`gene`, `delta_psi` and optionally `fdr` and `event_type` columns:
+
+```bash
+synaptik deposit splicing my_events.csv --perturbed positive
+```
+
+Thresholds default to FDR ≤ 0.05 and |dPSI| ≥ 0.1; change them with `--fdr`
+and `--min-dpsi`.
+
+## 7.3 Reconcile phenotypes
+
+A CSV with `phenotype` and `direction` columns (`increase`, `decrease`,
+`no_change`), and optionally `gene`, `effect_size`, `assay`, `div`:
+
+```bash
+synaptik deposit phenotypes my_phenotypes.csv
+```
+
+Each row is called consistent, discordant, contested (the literature itself
+is split), or novel. Giving a `gene` restricts the comparison to records with
+that perturbation, which is nearly always what you want.
+
+## 7.4 Check that the tiers mean something on your corpus
+
+```bash
+synaptik benchmark --cutoff 2021
+```
+
+This freezes the corpus at the cutoff, computes every association, and asks
+whether a **new** research group later reported the same thing. It compares
+SYNAPTIK's ranking against enrichment, p-value and plain paper count.
+
+Read it like this:
+
+- **The comparison that matters is against `record_count`.** Heavily studied
+  topics get re-reported regardless of quality. The ranking is only useful to
+  the extent it beats "more papers predicts more papers".
+- **A verdict of better or worse is only issued when the bootstrap interval
+  excludes zero.** Otherwise it says there is no detectable difference.
+- **On the demo corpus the result is meaningless**: publication years there
+  are random, so there is nothing to predict. Run it on a real corpus of a
+  few thousand records.
+
+If the benchmark says the tiers do not predict replication on your corpus,
+believe it and tell us — that is exactly the kind of result this command
+exists to find.
 
 ---
 

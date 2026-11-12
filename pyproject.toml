@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "synaptik"
-version = "0.2.0"
+version = "0.3.0"
 description = "Evidence-structure analysis for iPSC-neuron research: experiment lookup, phenotype-to-pathway inference, and reconciliation of literature, splice prediction, and population genetics"
 readme = "README.md"
 requires-python = ">=3.10"

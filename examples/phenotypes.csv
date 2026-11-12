@@ -1,0 +1,5 @@
+phenotype,direction,effect_size,gene,assay,div
+SYN1 puncta density,decrease,-31,TARDBP,imaging_synaptic_puncta,21
+mEPSC frequency,increase,22,TARDBP,electrophys_patch,28
+neuronal viability,no_change,,TARDBP,viability,21
+mitochondrial membrane potential,decrease,-18,TARDBP,,21
