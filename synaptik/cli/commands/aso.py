@@ -92,6 +92,8 @@ def cmd_aso(args) -> int:
         except OSError as e:
             print(Fmt.red(f"Failed to export: {e}"))
 
+    print("\n" + "-" * 78)
+    print("Cite: Francesco Nobile (ORCID: 0009-0001-9477-3332); run 'synaptik cite'")
     return 0
 
 

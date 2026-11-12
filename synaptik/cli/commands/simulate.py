@@ -82,6 +82,8 @@ def cmd_simulate(args) -> int:
                 print(f"    -> {rec}")
         else:
             print("  ! No viable candidates passed toxicity and efficiency filters.")
+        print("\n" + "-" * 78)
+        print("Cite: Francesco Nobile (ORCID: 0009-0001-9477-3332); run 'synaptik cite'")
         return 0
 
     # Mode 2: Targeted single perturbation simulation
@@ -172,6 +174,8 @@ def cmd_simulate(args) -> int:
         for rec in res.recommendations:
             print(f"  -> {rec}")
 
+    print("\n" + "-" * 78)
+    print("Cite: Francesco Nobile (ORCID: 0009-0001-9477-3332); run 'synaptik cite'")
     return 0
 
 

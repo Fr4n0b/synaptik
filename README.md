@@ -9,6 +9,7 @@
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://fr4n0b.github.io/synaptik/)
 [![GitHub release](https://img.shields.io/github/v/release/Fr4n0b/synaptik)](https://github.com/Fr4n0b/synaptik/releases)
 [![Discussions](https://img.shields.io/badge/Discussions-Join-purple)](https://github.com/Fr4n0b/synaptik/discussions)
+[![ORCID](https://img.shields.io/badge/ORCID-0009--0001--9477--3332-green.svg)](https://orcid.org/0009-0001-9477-3332)
 ![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Status](https://img.shields.io/badge/status-alpha-orange)
@@ -386,12 +387,15 @@ trustworthy. If it fails, the output should not be used.
       tables) so a lab's own unpublished results can be reconciled against the literature
 - [x] Native parsers for MAJIQ (VOILA) and LeafCutter output with multi-junction and cluster coordinate handling
 - [x] Paired-design power analysis for isogenic iPSC disease modeling (exact noncentral-$t$ across $\rho$)
-- [ ] Cell-type-resolved expression (Allen Brain Atlas, iPSC-neuron scRNA-seq atlases)
-- [ ] LINCS / CMap perturbation signatures as an additional functional evidence class
+- [x] Cell-type-resolved expression (Dish-to-Brain Human Post-Mortem snRNA-seq Bridge)
+- [x] LINCS / CMap perturbation signatures as an additional functional evidence class (Causal Counterfactual Simulator)
 - [ ] Shared, versioned knowledge-base snapshots for collaborating labs
 
 **Longer term**
 - [x] Benchmark harness: retrospective prediction of findings published after a corpus cutoff
+- [x] In silico ASO engineering pipeline (thermodynamics, liability screening, neural off-targets)
+- [x] Translational fluid biomarker pharmacodynamics & patient stratification (plasma NfL kinetics)
+- [x] Preclinical study design registry & multi-site meta-analysis (Nature reproducibility standards)
 - [ ] Run and publish the benchmark on a full real-literature corpus
 - [ ] Extension beyond neurons to other iPSC-derived systems
 
@@ -417,8 +421,42 @@ propose larger changes.
 
 ## Citation
 
-If SYNAPTIK contributes to your work, please cite it using the metadata in
-[`CITATION.cff`](CITATION.cff) (GitHub shows a "Cite this repository" button).
+If you use SYNAPTIK in your research, grant proposals, computational drug discovery, or preclinical studies, please cite:
+
+**APA (7th edition):**
+> Nobile, F. (2026). *SYNAPTIK: Evidence-structure analysis for iPSC-neuron research* (Version 0.6.1). Massachusetts General Hospital / Harvard Medical School; University of Pavia. https://github.com/Fr4n0b/synaptik. ORCID: [0009-0001-9477-3332](https://orcid.org/0009-0001-9477-3332).
+
+**Nature / Vancouver:**
+> Nobile F. SYNAPTIK: Evidence-structure analysis for iPSC-neuron research. v0.6.1 (2026). https://github.com/Fr4n0b/synaptik (ORCID: [0009-0001-9477-3332](https://orcid.org/0009-0001-9477-3332)).
+
+**BibTeX:**
+```bibtex
+@software{nobile2026synaptik,
+  author       = {Nobile, Francesco},
+  title        = {{SYNAPTIK: Evidence-structure analysis for iPSC-neuron research}},
+  year         = {2026},
+  version      = {0.6.1},
+  url          = {https://github.com/Fr4n0b/synaptik},
+  note         = {ORCID: https://orcid.org/0009-0001-9477-3332},
+  organization = {Center for Genomic Medicine, Massachusetts General Hospital / Harvard Medical School}
+}
+```
+
+Or query metadata directly from the command line:
+```bash
+synaptik cite              # Display formatted APA, Nature, and BibTeX citations
+synaptik cite --bibtex     # Export BibTeX entry directly (e.g., >> references.bib)
+synaptik cite --apa        # Export APA string
+synaptik cite --json       # Export machine-readable citation metadata
+```
+
+You can also use the **"Cite this repository"** button in GitHub's right-hand sidebar, powered by [`CITATION.cff`](CITATION.cff).
+
+### Archival DOI via Zenodo
+To generate a persistent Digital Object Identifier (DOI) indexed in Crossref and Google Scholar, this repository can be connected to Zenodo:
+1. Log in to [Zenodo](https://zenodo.org/) using your GitHub account.
+2. Toggle the switch for `Fr4n0b/synaptik` under GitHub integrations.
+3. GitHub release tags will automatically mint an immutable citable DOI with Francesco Nobile registered as primary author.
 
 ## License
 

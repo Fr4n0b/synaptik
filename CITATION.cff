@@ -5,15 +5,19 @@ type: software
 authors:
   - family-names: "Nobile"
     given-names: "Francesco"
+    orcid: "https://orcid.org/0009-0001-9477-3332"
     affiliation: "Center for Genomic Medicine, Massachusetts General Hospital / Harvard Medical School; University of Pavia"
-version: 0.3.0
+version: 0.6.1
 date-released: 2026-11-12
 license: MIT
 repository-code: "https://github.com/Fr4n0b/synaptik"
+url: "https://github.com/Fr4n0b/synaptik"
 keywords:
   - iPSC
   - neuroscience
+  - translational genomics
   - alternative splicing
-  - literature mining
-  - evidence synthesis
-  - SpliceAI
+  - antisense oligonucleotides
+  - single-cell transcriptomics
+  - fluid biomarkers
+  - causal perturbation

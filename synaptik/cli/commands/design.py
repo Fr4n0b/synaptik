@@ -133,6 +133,9 @@ def cmd_design(args) -> int:
         header("Read first")
         for k in b.key_papers:
             print(Fmt.dim(f"  {k}"))
+
+    print("\n" + "-" * 78)
+    print("Cite: Francesco Nobile (ORCID: 0009-0001-9477-3332); run 'synaptik cite'")
     return 0
 
 

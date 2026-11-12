@@ -106,6 +106,8 @@ def cmd_translate(args) -> int:
         for r in res.recommendations:
             print(f"  -> {r}")
 
+    print("\n" + "-" * 78)
+    print("Cite: Francesco Nobile (ORCID: 0009-0001-9477-3332); run 'synaptik cite'")
     return 0
 
 

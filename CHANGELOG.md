@@ -2,6 +2,18 @@
 
 All notable changes to SYNAPTIK are recorded here.
 
+## 0.6.1 — 2026-11-12
+
+### Added
+- **`synaptik cite` — Author Scientific Recognition & Citation Engine**:
+  - Integrated citation generation and metadata export for lead author **Francesco Nobile** (ORCID: [`0009-0001-9477-3332`](https://orcid.org/0009-0001-9477-3332)), Center for Genomic Medicine, Massachusetts General Hospital / Harvard Medical School and University of Pavia (`synaptik/cli/commands/cite.py`).
+  - Multi-format academic citation export: BibTeX (`--bibtex`), APA 7th edition (`--apa`), Nature / Vancouver, and machine-readable JSON (`--json`).
+  - Citation File Format [`CITATION.cff`](CITATION.cff) (v1.2.0) with verified author ORCID, powering GitHub's native "Cite this repository" sidebar widget.
+  - Formatted citation footers and prompt reminders integrated into all major translational CLI command outputs (`protocol`, `design`, `aso`, `biomarker`, `simulate`, `translate`).
+  - Package authorship registration in `pyproject.toml` (`authors` and `maintainers`).
+  - Zenodo DOI integration architecture for automated minting of citable, immutable DOIs indexed by Crossref and Google Scholar upon release.
+  - Dedicated regression test suite [`tests/test_cite.py`](tests/test_cite.py) with 20 checks, bringing the platform test suite to **362 passing checks across 8 test suites**.
+
 ## 0.6.0 — 2026-11-12
 
 ### Added

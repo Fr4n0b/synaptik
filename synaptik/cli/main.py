@@ -871,8 +871,8 @@ def cmd_demo(args) -> int:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="synaptik",
-        description="Literature-grounded experiment lookup and "
-                    "phenotype-to-pathway inference for iPSC-neuron research.",
+        description="Literature-grounded evidence-structure analysis and "
+                    "translational therapeutics platform for iPSC-neuron research.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 examples:
@@ -883,6 +883,10 @@ examples:
   synaptik lookup --target SCN2A --div 21          check if it has been done
   synaptik splicing --gene STMN2                   splicing-focused view
   synaptik compare "SYN1 puncta" "mEPSC frequency" cross-check two readouts
+  synaptik cite                                    cite Francesco Nobile & SYNAPTIK
+
+citation:
+  Francesco Nobile (ORCID: 0009-0001-9477-3332). Run 'synaptik cite'.
 """,
     )
     p.add_argument("--db", default=DEFAULT_DB,

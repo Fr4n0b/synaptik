@@ -85,6 +85,8 @@ def cmd_biomarker(args) -> int:
         for rec in res.actionable_trial_recommendations:
             print(f"  -> {rec}")
 
+    print("\n" + "-" * 78)
+    print("Cite: Francesco Nobile (ORCID: 0009-0001-9477-3332); run 'synaptik cite'")
     return 0
 
 

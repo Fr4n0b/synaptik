@@ -83,6 +83,8 @@ def cmd_protocol(args) -> int:
             d_shift = item["delta_from_overall"]
             print(f"{site:<24s} {p_excl:>+12.2f}            {d_shift:>+10.2f}")
 
+        print("\n" + "-" * 78)
+        print("Cite: Francesco Nobile (ORCID: 0009-0001-9477-3332); run 'synaptik cite'")
         return 0
 
     # Mode 2: Generate pre-registration study protocol
@@ -128,6 +130,7 @@ def cmd_protocol(args) -> int:
         print(f"  Well {well:<4s} -> {assignment}")
 
     print(f"\n  [OK] Pre-registration fingerprint generated. Export with --json to archive in repository.")
+    print("  [Cite: Francesco Nobile (ORCID: 0009-0001-9477-3332); run 'synaptik cite']")
     return 0
 
 

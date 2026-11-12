@@ -4,9 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "synaptik"
-version = "0.6.0"
+version = "0.6.1"
 description = "Evidence-structure analysis for iPSC-neuron research: experiment lookup, phenotype-to-pathway inference, and reconciliation of literature, splice prediction, and population genetics"
 readme = "README.md"
+authors = [
+    { name = "Francesco Nobile", email = "fr4n0bbb@gmail.com" }
+]
+maintainers = [
+    { name = "Francesco Nobile", email = "fr4n0bbb@gmail.com" }
+]
 requires-python = ">=3.10"
 license = {text = "MIT"}
 dependencies = [

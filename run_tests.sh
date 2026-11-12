@@ -32,6 +32,10 @@ echo "=== preclinical study design registry & meta-analysis suite ==="
 python3 -m tests.test_protocol
 
 echo
+echo "=== author scientific recognition & citation suite ==="
+python3 -m tests.test_cite
+
+echo
 echo "=== API contract self-test (offline) ==="
 python3 -m synaptik.ingest.contracts
 
@@ -59,6 +63,9 @@ for cmd in \
   "biomarker --disease als --target STMN2 --rescue-pct 75" \
   "protocol --target STMN2 --disease als --pairs 8" \
   "protocol --meta-analysis examples/multisite_stmn2.json" \
+  "cite" \
+  "cite --bibtex" \
+  "cite --apa" \
   "contracts --self-test"
 do
   eval "python3 -m synaptik.cli.main $cmd --db '$TMPDB'" > /dev/null 2>&1 \
@@ -84,7 +91,8 @@ for cmd in \
   "simulate --disease als --screen" \
   "biomarker --disease als --target STMN2 --rescue-pct 75" \
   "protocol --target STMN2 --disease als --pairs 8" \
-  "protocol --meta-analysis examples/multisite_stmn2.json"
+  "protocol --meta-analysis examples/multisite_stmn2.json" \
+  "cite"
 do
   eval "python3 -m synaptik.cli.main $cmd --db '$TMPDB' --json" \
     | python3 -c "import json,sys; json.load(sys.stdin)" \
