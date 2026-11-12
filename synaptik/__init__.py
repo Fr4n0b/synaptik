@@ -1,2 +1,2 @@
 """SYNAPTIK: literature-grounded experiment lookup and phenotype-to-pathway inference."""
-__version__ = "0.3.1"
+__version__ = "0.4.0"

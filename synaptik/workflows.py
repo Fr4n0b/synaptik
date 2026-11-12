@@ -60,6 +60,7 @@ def design_brief(
 from .sequence.benchmark_spliceai import (
     SpliceBenchmarkResult, run_spliceai_benchmark,
 )
+from .drug.aso import ASOCandidate, ASODesigner, ASODesignResult, ASOMode
 
 
 def run_benchmark(store: Store, cutoff_year: int) -> BenchmarkResult:
@@ -68,6 +69,24 @@ def run_benchmark(store: Store, cutoff_year: int) -> BenchmarkResult:
 
 def run_splice_benchmark(threshold: float = 0.20) -> SpliceBenchmarkResult:
     return run_spliceai_benchmark(threshold=threshold)
+
+
+def design_aso(
+    target_sequence: str,
+    mode: str = "splice_switch",
+    target_gene: str = "",
+    target_region: str = "splice site",
+    top_k: int = 5,
+) -> ASODesignResult:
+    """In silico design of synthesis-ready therapeutic antisense oligonucleotides."""
+    aso_mode = ASOMode.GAPMER if mode.lower() == "gapmer" else ASOMode.SPLICE_SWITCH
+    return ASODesigner().design(
+        target_sequence=target_sequence,
+        mode=aso_mode,
+        target_gene=target_gene,
+        target_region=target_region,
+        top_k=top_k,
+    )
 
 
 # --------------------------------------------------------------------------
@@ -229,4 +248,20 @@ def spliceai_benchmark_to_dict(res: SpliceBenchmarkResult) -> dict:
         "accuracy": res.accuracy,
         "auroc": res.auroc,
         "details": res.details,
+    }
+
+
+def aso_result_to_dict(res: ASODesignResult) -> dict:
+    from dataclasses import asdict
+    return {
+        "target_gene": res.target_gene,
+        "target_region": res.target_region,
+        "target_sequence": res.target_sequence,
+        "mode": res.mode.value,
+        "chemistry": res.chemistry.value,
+        "n_windows_evaluated": res.n_windows_evaluated,
+        "n_passed_filters": res.n_passed_filters,
+        "precedent": res.precedent,
+        "caveats": res.caveats,
+        "candidates": [asdict(c) for c in res.candidates],
     }

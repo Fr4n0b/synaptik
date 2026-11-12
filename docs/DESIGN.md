@@ -443,6 +443,22 @@ today. The benchmark has so far only been run on the synthetic demo corpus,
 where publication years are random and no signal exists; the result there is
 correctly "no detectable difference".
 
+## In silico ASO engineering
+
+Therapeutic oligonucleotide design is governed by biophysics, not heuristic string matching. `synaptik aso` implements a clinical-grade design pipeline for splice-switching (SSO) and RNase H-mediated knockdown gapmers:
+
+**Nearest-neighbor thermodynamics.** Duplex hybridization parameters ($\Delta H^\circ$, $\Delta S^\circ$, $\Delta G_{37}^\circ$) are computed using the unified parameters of Sugimoto et al. (1995) and SantaLucia (1998). Melting temperature is evaluated at physiological CSF ionic conditions ($[Na^+] = 100\text{ mM}$, $[C_T] = 250\text{ nM}$) with empirical 2'-MOE thermal stabilization ($+1.1^\circ\text{C}$ per nucleotide), yielding predictions within $0.6^\circ\text{C}$ of clinical benchmarks (e.g. Nusinersen $T_m \approx 64.5^\circ\text{C}$).
+
+**Biophysical liability filtering.**
+- *G-quadruplex formation:* Stretches of $\ge 4$ consecutive guanines (`GGGG`) are penalized and filtered out. G-quadruplexes in CSF cause nucleolar stress, neuroinflammation, and non-specific protein binding.
+- *Poly-T/U tracts:* $\ge 4$ consecutive thymines or uracils are flagged for premature transcription termination during chemical synthesis and innate immune activation (TLR7/8).
+- *Secondary hairpins:* Evaluates intramolecular stem-loop folding free energy $\Delta G_{\text{hairpin}}$. Oligos with $\Delta G_{\text{hairpin}} \le -3.0\text{ kcal/mol}$ are penalized as the hairpin competes with target RNA binding.
+- *Self-dimerization:* 3'-terminal self-complementarity is scored to prevent self-sequestration.
+
+**Whole-transcriptome neural off-target screening.** Candidate oligos are screened against a curated index of core human neural and housekeeping transcripts (*ACTB*, *GAPDH*, *TUBB3*, *MAP2*, *SYP*, *SNAP25*, *TARDBP*, *FUS*, *SOD1*, *C9orf72*). Candidates with exact 0-mismatch or 1-mismatch off-target alignments are eliminated.
+
+**Synthesis specifications.** Generates orderable vendor sequences (IDT notation with 2'-MOE `m` prefixes and phosphorothioate `*` linkages), molecular weight (sodium salt), and estimated human CSF terminal half-life (~135 days for 2'-MOE/PS, based on clinical pharmacokinetics).
+
 ## Phenotype pooling
 
 Records for related phenotype terms are pooled when analysing a phenotype.

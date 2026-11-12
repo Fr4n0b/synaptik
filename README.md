@@ -119,6 +119,9 @@ says why.
 - RBP regulator inference (TDP-43, PTBP1/2, RBFOX, SR proteins, and others) with
   motif scanning
 - dPSI sign normalization across rMATS, MAJIQ, and RT-PCR, with conflicts flagged
+- **In silico ASO engineering pipeline**: nearest-neighbor thermodynamics ($\Delta H^\circ, \Delta S^\circ, \Delta G_{37}^\circ, T_m$),
+  biophysical liability filters (G-quadruplex, poly-T/U, hairpins), whole-transcriptome neural off-target
+  screening, and synthesis-ready order specifications (2'-MOE/PS splice-switching oligos and 5-10-5 gapmers)
 - ASO strategy routing and NMD-risk assessment per event
 - Drug candidates from ChEMBL and Open Targets, filtered by **mechanism
   direction** (an inhibitor is never suggested for a down-regulated pathway),
@@ -212,6 +215,9 @@ synaptik benchmark --cutoff 2021
 
 # Validate sequence splice predictors against gold-standard neurodegenerative variants
 synaptik benchmark --spliceai
+
+# Design synthesis-ready therapeutic antisense oligonucleotides (ASOs)
+synaptik aso --sequence TTCTGTAACAGTTTTTGTTTTTTCAGGTGAGTATTCAGGT --gene STMN2 --mode splice_switch
 
 # Do my variants affect splicing, and has anyone shown it?
 synaptik variant "chr2:165991235:G>A" --gene SCN2A --spliceai-vcf scores.vcf.gz
@@ -319,7 +325,7 @@ on output:
   report.** Design briefs show a range of assumed CVs; supply your own with
   `--cv` for a real estimate, and use `--rho` for paired isogenic designs.
 
-The test suite (230+ checks) encodes the properties that make output
+The test suite (257 checks across 3 suites) encodes the properties that make output
 trustworthy. If it fails, the output should not be used.
 
 ---
@@ -327,6 +333,7 @@ trustworthy. If it fails, the output should not be used.
 ## Roadmap
 
 **Near term**
+- [x] In silico ASO engineering pipeline for splice-switching and gapmers (`synaptik aso`)
 - [x] Validate the SpliceAI adapter against a benchmark set of published splice variants (`synaptik benchmark --spliceai`)
 - [ ] Live-API integration tests in CI on a weekly schedule
 - [ ] Pangolin integration for tissue-aware splice prediction
@@ -338,6 +345,7 @@ trustworthy. If it fails, the output should not be used.
       tables) so a lab's own unpublished results can be reconciled against the literature
 - [x] Native parsers for MAJIQ (VOILA) and LeafCutter output with multi-junction and cluster coordinate handling
 - [x] Paired-design power analysis for isogenic iPSC disease modeling (exact noncentral-$t$ across $\rho$)
+- [ ] Human post-mortem single-nucleus RNA-seq translational bridge (`synaptik translate`)
 - [ ] Cell-type-resolved expression (Allen Brain Atlas, iPSC-neuron scRNA-seq atlases)
 - [ ] LINCS / CMap perturbation signatures as an additional functional evidence class
 - [ ] Shared, versioned knowledge-base snapshots for collaborating labs

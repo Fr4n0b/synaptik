@@ -12,6 +12,10 @@ echo "=== lab-workflow suite (deposit, design, benchmark, pooling) ==="
 python3 -m tests.test_lab_workflows
 
 echo
+echo "=== antisense oligonucleotide (ASO) engineering suite ==="
+python3 -m tests.test_aso
+
+echo
 echo "=== API contract self-test (offline) ==="
 python3 -m synaptik.ingest.contracts
 
@@ -30,6 +34,8 @@ for cmd in \
   "deposit splicing examples/SE.MATS.JC.txt --perturbed sample1" \
   "deposit phenotypes examples/phenotypes.csv" \
   "benchmark" \
+  "benchmark --spliceai" \
+  "aso --sequence TTCTGTAACAGTTTTTGTTTTTTCAGGTGAGTATTCAGGT --gene STMN2" \
   "contracts --self-test"
 do
   eval "python3 -m synaptik.cli.main $cmd --db '$TMPDB'" > /dev/null 2>&1 \
@@ -46,7 +52,9 @@ for cmd in \
   "design --target TARDBP --assay imaging_synaptic_puncta" \
   "deposit splicing examples/SE.MATS.JC.txt --perturbed sample1" \
   "deposit phenotypes examples/phenotypes.csv" \
-  "benchmark"
+  "benchmark" \
+  "benchmark --spliceai" \
+  "aso --sequence TTCTGTAACAGTTTTTGTTTTTTCAGGTGAGTATTCAGGT --gene STMN2"
 do
   eval "python3 -m synaptik.cli.main $cmd --db '$TMPDB' --json" \
     | python3 -c "import json,sys; json.load(sys.stdin)" \

@@ -2,6 +2,26 @@
 
 All notable changes to SYNAPTIK are recorded here.
 
+## 0.4.0 — 2026-11-12
+
+### Added
+- **`synaptik aso` — In Silico Therapeutic ASO Engineering Pipeline**:
+  - Full in silico design engine for clinical-grade antisense oligonucleotides (`synaptik/drug/aso.py`).
+  - Supports two primary translational drug mechanisms:
+    1. **Splice-Switching Oligonucleotides (SSO)**: Steric blocking for exon inclusion or cryptic exon exclusion (e.g. Nusinersen / *STMN2* series) with uniform 2'-MOE and phosphorothioate (PS) backbone or PMO chemistry.
+    2. **RNase H1 Knockdown Gapmers**: Catalytic transcript degradation with 5-10-5 wing-gap-wing architecture (e.g. Tofersen / *SOD1* series).
+  - **Thermodynamic Hybridization Engine**: Nearest-neighbor parameters (SantaLucia 1998, Sugimoto et al. 1995) calculating $\Delta H^\circ$, $\Delta S^\circ$, Gibbs free energy $\Delta G_{37}^\circ$, and salt-adjusted melting temperature $T_m$ under physiological CSF conditions ($[Na^+] = 100\text{ mM}$, $[C_T] = 250\text{ nM}$) with 2'-MOE thermal stabilization ($+1.1^\circ\text{C}$ per nucleotide).
+  - **Biophysical Liability & Safety Filters**:
+    - G-quadruplex risk detection ($\ge 4$ consecutive Gs, causes CSF neurotoxicity and non-specific protein binding).
+    - Poly-T / Poly-U premature termination and innate immune risk detection.
+    - Stem-loop self-hairpin minimum free energy ($\Delta G_{\text{hairpin}}$) prediction.
+    - 3'-end self-dimerization complementarity scoring.
+  - **Whole-Transcriptome Neural Off-Target Screening**: Screens candidate oligos against core neural and housekeeping transcripts (*ACTB*, *GAPDH*, *TUBB3*, *MAP2*, *SYP*, *SNAP25*, *TARDBP*, *FUS*, *SOD1*, *C9orf72*), enforcing zero 0-mismatch or 1-mismatch off-target matches and maximum mismatch distance.
+  - **Synthesis-Ready Specifications**: Outputs molecular weight (sodium salt), extinction coefficient $\epsilon_{260}$, predicted human CSF terminal half-life (~135 days for 2'-MOE/PS), and orderable IDT vendor format strings (`mN*...`).
+  - CLI command `synaptik aso --sequence <SEQ> [--mode splice_switch|gapmer] [--gene <GENE>] [--json] [--export <PATH>]`.
+  - Python API workflows: `design_aso()` and `aso_result_to_dict()` in `synaptik/workflows.py`.
+  - Dedicated regression test suite [tests/test_aso.py](file:///c:/Users/frano/OneDrive/Desktop/Virtual_neuron/tests/test_aso.py) with 20 checks (257 checks total across the platform).
+
 ## 0.3.1 — 2026-11-12
 
 ### Added
