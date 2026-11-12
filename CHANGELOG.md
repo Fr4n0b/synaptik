@@ -2,6 +2,21 @@
 
 All notable changes to SYNAPTIK are recorded here.
 
+## 0.5.1 — 2026-11-12
+
+### Added
+- **`synaptik biomarker` — Translational Fluid Biomarker & Patient Stratification Panel**:
+  - Longitudinal pharmacodynamic trajectory modeling for clinical fluid biomarkers (Plasma Neurofilament Light Chain, NfL, via Simoa ultrasensitive assay; CSF NfL; p-tau181) (`synaptik/biomarker/nfl.py`).
+  - Connects in vitro axonal and synaptic rescue percentages into in vivo dynamic biomarker suppression curves using non-linear clearance kinetics ($t_{1/2} = 8\text{ weeks}$, scaling factor $\beta = 0.72$).
+  - Grounded in clinical trial benchmarks: VALOR study (*SOD1* tofersen, Miller et al. NEJM 2022: ~60% plasma NfL suppression; FDA Accelerated Approval surrogate endpoint guidance).
+  - Clinical trial patient stratification engine:
+    - Automatically classifies patients into progression tiers (fast, intermediate, slow) based on baseline plasma NfL cutoffs ($> 75\text{ pg/mL}$, $40\text{--}75\text{ pg/mL}$, $< 40\text{ pg/mL}$).
+    - Calculates clinical trial sample size optimization: shows that biomarker-enriched patient stratification reduces required trial sample size per arm by 60–75% (e.g. from 74 down to 18 patients/arm) to detect 30% therapeutic slowing of functional decline (ALSFRS-R).
+  - Regulatory surrogate milestone verdicts: evaluates whether projected in vivo suppression exceeds FDA accelerated approval surrogate thresholds.
+  - CLI command `synaptik biomarker --disease <DISEASE> [--target <GENE>] [--rescue-pct <FLOAT>] [--nfl-baseline <FLOAT>] [--json]`.
+  - Python API workflows: `evaluate_biomarker_trajectory()`, `biomarker_result_to_dict()` in `synaptik/workflows.py`.
+  - Dedicated regression test suite [tests/test_biomarker.py](file:///c:/Users/frano/OneDrive/Desktop/Virtual_neuron/tests/test_biomarker.py) with 21 checks (321 platform checks total across 6 test suites).
+
 ## 0.5.0 — 2026-11-12
 
 ### Added

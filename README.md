@@ -125,6 +125,10 @@ says why.
 - **Causal genomic counterfactual simulator** (`synaptik simulate`): in silico perturbation engine (knockdown,
   knockout, overexpression, ASO steric blocking) evaluating rescue efficiency, directional cosine alignment,
   and collateral neural toxicity against diseased neuronal vectors (ALS, FTD, AD), with high-throughput target screening
+- **Translational fluid biomarker & patient stratification panel** (`synaptik biomarker`): models longitudinal
+  in vivo clinical plasma/CSF Neurofilament Light Chain (NfL) pharmacodynamic suppression from in vitro axonal rescue,
+  evaluates FDA accelerated approval surrogate milestones, and calculates clinical trial sample size optimization
+  via biomarker-enriched patient progression stratification (saving 60–75% patient cohort burden)
 - **Dish-to-brain human post-mortem snRNA-seq bridge** (`synaptik translate`): reconciles dish findings against
   human post-mortem single-nucleus transcriptomic disease atlases (ALS NYGC Consortium, SEA-AD Alzheimer's, FTD),
   evaluates cryptic exon inclusion pathology (*STMN2*, *UNC13A*), maps cell-type specificity (upper/lower motor neurons,
@@ -231,6 +235,9 @@ synaptik aso --sequence TTCTGTAACAGTTTTTGTTTTTTCAGGTGAGTATTCAGGT --gene STMN2 --
 synaptik simulate --disease als --target ATXN2 --intervention knockdown
 synaptik simulate --disease als --screen
 
+# Model clinical plasma NfL trajectories and optimize clinical trial patient stratification
+synaptik biomarker --disease als --target STMN2 --rescue-pct 75
+
 # Bridge in vitro dish findings to human post-mortem single-cell brain atlases
 synaptik translate --splicing voila_majiq.tsv --disease als
 synaptik translate --genes STMN2 UNC13A TARDBP --disease als
@@ -302,6 +309,7 @@ synaptik/
   drug/        ChEMBL / Open Targets, mechanism-direction matching, CNS profiling, ASO engineering
   translate/   dish-to-brain human post-mortem single-cell atlas concordance
   simulate/    causal genomic counterfactual simulator & therapeutic target screening
+  biomarker/   translational fluid biomarker trajectories (NfL) & trial stratification
   cli/         command-line interface
   ui/          Flask web interface
 ```
@@ -343,7 +351,7 @@ on output:
   report.** Design briefs show a range of assumed CVs; supply your own with
   `--cv` for a real estimate, and use `--rho` for paired isogenic designs.
 
-The test suite (300 checks across 5 suites) encodes the properties that make output
+The test suite (321 checks across 6 suites) encodes the properties that make output
 trustworthy. If it fails, the output should not be used.
 
 ---
@@ -355,6 +363,7 @@ trustworthy. If it fails, the output should not be used.
 - [x] Validate the SpliceAI adapter against a benchmark set of published splice variants (`synaptik benchmark --spliceai`)
 - [x] Dish-to-brain human post-mortem single-nucleus RNA-seq translational bridge (`synaptik translate`)
 - [x] Causal Genomic Counterfactual Simulator: in silico knockouts & rescue phenotype modeling (`synaptik simulate`)
+- [x] Fluid Biomarker Matching Panel: mapping in vitro phenotypic rescue to patient CSF/plasma NfL trajectories (`synaptik biomarker`)
 - [ ] Live-API integration tests in CI on a weekly schedule
 - [ ] Pangolin integration for tissue-aware splice prediction
 - [ ] Manual-curation interface for research-group clustering
@@ -365,7 +374,7 @@ trustworthy. If it fails, the output should not be used.
       tables) so a lab's own unpublished results can be reconciled against the literature
 - [x] Native parsers for MAJIQ (VOILA) and LeafCutter output with multi-junction and cluster coordinate handling
 - [x] Paired-design power analysis for isogenic iPSC disease modeling (exact noncentral-$t$ across $\rho$)
-- [ ] Fluid Biomarker Matching Panel: mapping in vitro phenotypic severity to patient CSF/plasma NfL trajectories
+- [ ] Preclinical Multi-Site Study Design Registry & Meta-Analysis Protocol
 - [ ] Cell-type-resolved expression (Allen Brain Atlas, iPSC-neuron scRNA-seq atlases)
 - [ ] LINCS / CMap perturbation signatures as an additional functional evidence class
 - [ ] Shared, versioned knowledge-base snapshots for collaborating labs

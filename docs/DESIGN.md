@@ -503,6 +503,18 @@ $$\vec{v}_{\text{post}} = \vec{v}_D + \alpha \cdot \vec{\Delta}_T$$
    $$\text{Toxicity} = \text{Risk}_{\text{base}} + 0.25 \sum_{g \in \text{Housekeeping}} |\Delta_g|$$
 4. *Composite Rescue Score:* Grounded in Connectivity Map (CMap) and Perturb-seq standards, weighting directional cosine alignment (55%), magnitude reduction (up to 35%), and deducting collateral toxicity (up to 50%).
 
+## Translational fluid biomarker and patient trial stratification
+
+Neurofilament Light Chain (NfL) in cerebrospinal fluid (CSF) and blood plasma is the primary regulatory surrogate endpoint for axonal degeneration in neurodegenerative disease clinical trials (e.g. accelerated approval of tofersen for *SOD1* ALS based on plasma NfL suppression).
+
+**Longitudinal pharmacodynamic clearance kinetics.**
+SYNAPTIK models the translation of in vitro axonal rescue into longitudinal in vivo biomarker trajectories:
+$$\Delta \text{NfL}(t) = \text{NfL}_{\text{baseline}} \times \left(1 - \beta \cdot \text{Rescue}_{\text{dish}} \cdot (1 - e^{-t / \tau})\right)$$
+where $\tau \approx 8\text{ weeks}$ (systemic NfL clearance half-time) and $\beta \approx 0.72$ (dish-to-human translation scaling factor).
+
+**Patient cohort enrichment and sample size reduction.**
+In unstratified all-comers trials, inter-individual heterogeneity in baseline disease progression rates inflates variance ($\text{CV} \approx 0.50\text{--}0.65$), requiring $70\text{--}150$ patients per arm. Stratifying cohorts by baseline plasma NfL into progression tiers (fast: $> 75\text{ pg/mL}$, intermediate: $40\text{--}75\text{ pg/mL}$, slow: $< 40\text{ pg/mL}$) reduces variance ($\text{CV} \approx 0.30\text{--}0.32$), cutting required cohort sample size per arm by $60\text{--}75\%$ (e.g. from 74 down to 18 patients/arm) to detect a 30% slowing in functional decline.
+
 ## Phenotype pooling
 
 Records for related phenotype terms are pooled when analysing a phenotype.

@@ -352,3 +352,39 @@ def simulation_result_to_dict(res) -> dict:
         "recommendations": res.recommendations,
     }
 
+
+def evaluate_biomarker_trajectory(
+    disease: str = "als",
+    target_gene: str = "STMN2",
+    in_vitro_rescue_pct: float = 70.0,
+    baseline_plasma_nfl: float | None = None,
+) -> dict:
+    """Project in vitro rescue into in vivo human plasma NfL trajectory and trial power."""
+    from .biomarker.nfl import BiomarkerAnalyzer
+    analyzer = BiomarkerAnalyzer(disease=disease)
+    res = analyzer.evaluate_biomarker_response(
+        target_gene=target_gene,
+        in_vitro_rescue_pct=in_vitro_rescue_pct,
+        baseline_plasma_nfl=baseline_plasma_nfl,
+    )
+    return biomarker_result_to_dict(res)
+
+
+def biomarker_result_to_dict(res) -> dict:
+    from dataclasses import asdict
+    return {
+        "disease": res.disease,
+        "target_gene": res.target_gene,
+        "in_vitro_rescue_pct": res.in_vitro_rescue_pct,
+        "baseline_plasma_nfl_pg_ml": res.baseline_plasma_nfl_pg_ml,
+        "biomarker": res.biomarker.value,
+        "predicted_week12_nfl": res.predicted_week12_nfl,
+        "predicted_week24_nfl": res.predicted_week24_nfl,
+        "predicted_week48_nfl": res.predicted_week48_nfl,
+        "maximal_reduction_pct": res.maximal_reduction_pct,
+        "clinical_surrogate_verdict": res.clinical_surrogate_verdict,
+        "stratification": asdict(res.stratification),
+        "longitudinal_trajectory": [asdict(pt) for pt in res.longitudinal_trajectory],
+        "actionable_trial_recommendations": res.actionable_trial_recommendations,
+    }
+

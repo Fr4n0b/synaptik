@@ -24,6 +24,10 @@ echo "=== causal genomic counterfactual simulation suite ==="
 python3 -m tests.test_simulation
 
 echo
+echo "=== translational fluid biomarker & patient stratification suite ==="
+python3 -m tests.test_biomarker
+
+echo
 echo "=== API contract self-test (offline) ==="
 python3 -m synaptik.ingest.contracts
 
@@ -48,6 +52,7 @@ for cmd in \
   "translate --genes STMN2 UNC13A TARDBP --disease als" \
   "simulate --disease als --target ATXN2" \
   "simulate --disease als --screen" \
+  "biomarker --disease als --target STMN2 --rescue-pct 75" \
   "contracts --self-test"
 do
   eval "python3 -m synaptik.cli.main $cmd --db '$TMPDB'" > /dev/null 2>&1 \
@@ -70,7 +75,8 @@ for cmd in \
   "translate --splicing examples/voila_majiq.tsv --disease als" \
   "translate --genes STMN2 UNC13A TARDBP --disease als" \
   "simulate --disease als --target ATXN2" \
-  "simulate --disease als --screen"
+  "simulate --disease als --screen" \
+  "biomarker --disease als --target STMN2 --rescue-pct 75"
 do
   eval "python3 -m synaptik.cli.main $cmd --db '$TMPDB' --json" \
     | python3 -c "import json,sys; json.load(sys.stdin)" \
