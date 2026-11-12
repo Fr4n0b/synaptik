@@ -5,6 +5,8 @@
 **Evidence-structure analysis for iPSC-neuron research: has this experiment been done, what does this phenotype mean, and where do the literature, sequence models, and population genetics disagree?**
 
 [![Tests](https://github.com/Fr4n0b/synaptik/actions/workflows/tests.yml/badge.svg)](https://github.com/Fr4n0b/synaptik/actions/workflows/tests.yml)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Fr4n0b/synaptik/blob/main/notebooks/quickstart.ipynb)
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://fr4n0b.github.io/synaptik/)
 ![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Status](https://img.shields.io/badge/status-alpha-orange)
