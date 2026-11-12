@@ -150,6 +150,11 @@ synaptik gene TARDBP --db data/demo.db --offline
 synaptik ui --db data/demo.db          # web interface at http://127.0.0.1:8420
 ```
 
+<div align="center">
+  <img src="docs/ui_preview.png" alt="SYNAPTIK Web Interface Preview" width="850" style="border-radius: 8px; border: 1px solid #2a3542;" />
+  <p><em>SYNAPTIK Laboratory Instrument Web Interface &bull; Real-time phenotype lookup, evidence structure, and cross-layer reconciliation</em></p>
+</div>
+
 Build a real corpus for your topic:
 
 ```bash
