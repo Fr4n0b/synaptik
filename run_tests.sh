@@ -127,6 +127,19 @@ do
 done
 
 echo
+echo "=== standalone CLI smoke tests (biophysics, twin, clinical, data) ==="
+for cmd in \
+  "biophysics open --sequence TTCTGTAACAGTTTTTGTTTTTTCAGGTGAGTATTCAGGT --target-start 18 --target-end 36" \
+  "twin simulate --age 56 --site bulbar --duration 12 --alsfrs 38 --twins 100 --seed 42" \
+  "clinical allometry --noael-mg 5.0 --cohort adult --acknowledge-not-clinical" \
+  "data --help"
+do
+  eval "python3 -m synaptik.cli.main $cmd" > /dev/null 2>&1 \
+    && echo "  PASS  synaptik $cmd" \
+    || { echo "  FAIL  synaptik $cmd"; exit 1; }
+done
+
+echo
 echo "=== JSON output validity ==="
 for cmd in \
   "phenotype 'SYN1 puncta density'" \

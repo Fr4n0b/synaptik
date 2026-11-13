@@ -512,6 +512,33 @@ def test_spliceai_benchmark() -> None:
     check(res.auroc >= 0.90, f"ROC-AUC >= 0.90 (got {res.auroc:.3f})")
 
 
+def test_heuristic_abstract_extractor() -> None:
+    print("\n[extract: deterministic abstract extractor]")
+    from synaptik.extract.heuristic import extract_records_from_abstract
+    from synaptik.schema import Direction, SourceMetadata
+
+    src = SourceMetadata(
+        source_id="PMID:99999999",
+        title="TDP-43 loss in iPSC motor neurons",
+        year=2023,
+        journal="Neuron",
+        authors=["Jane Doe", "John Smith"],
+        corresponding_author="John Smith",
+        affiliations=["Massachusetts General Hospital"],
+        lab_id="lab_smith",
+    )
+    abstract = (
+        "Human iPSC-derived NGN2 neurons lacking TARDBP showed markedly decreased "
+        "presynaptic puncta density and impaired synaptic transmission. "
+        "Conversely, cryptic exon inclusion increased in STMN2 splicing assays."
+    )
+    recs = extract_records_from_abstract(src, abstract)
+    check(len(recs) >= 1, f"extracted sentence-grounded records from abstract (got {len(recs)})")
+    check(any(r.perturbation.target and r.perturbation.target.canonical_label == "TARDBP" and r.outcome.direction == Direction.DECREASE for r in recs),
+          "captured TARDBP decrease direction")
+    check(all(r.provenance.quote in abstract for r in recs), "every record carries a verbatim abstract quote")
+
+
 def main() -> int:
     print("=" * 70)
     print("SYNAPTIK lab-workflow regression suite")
@@ -525,6 +552,7 @@ def main() -> int:
     test_benchmark()
     test_pooling_and_vocabulary()
     test_spliceai_benchmark()
+    test_heuristic_abstract_extractor()
     print("\n" + "=" * 70)
     if FAILURES:
         print(f"{len(FAILURES)} FAILURE(S):")

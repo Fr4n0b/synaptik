@@ -322,6 +322,19 @@ def test_specificity_screened_property_and_gapmer_thermo() -> None:
         "screen_batch matches single-oligo screen_oligo exactly",
     )
 
+    import tempfile
+    from pathlib import Path
+    with tempfile.TemporaryDirectory() as tmpdir:
+        fa = Path(tmpdir) / "ref.fa"
+        fa.write_text(">TX1\nAAAAATTTTTTCACTTTCATAATGCTGGGGGGGG\n>TX2\nCCCCCCCCAGCTGTAGAAATGTATCCTGGGGGGG\n", encoding="utf-8")
+        r_uncached = sc.screen_batch_against_fasta(oligos, fa, use_cache=False)
+        r_cached_1 = sc.screen_batch_against_fasta(oligos, fa, use_cache=True)
+        r_cached_2 = sc.screen_batch_against_fasta(oligos, fa, use_cache=True)
+        check(
+            all(len(a.hits) == len(b.hits) == len(c.hits) for a, b, c in zip(r_uncached, r_cached_1, r_cached_2)),
+            "disk-cached FASTA batch screen matches uncached screen across repeat calls",
+        )
+
 
 def main() -> int:
     print("=" * 70)

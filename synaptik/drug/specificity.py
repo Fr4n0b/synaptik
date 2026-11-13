@@ -223,6 +223,67 @@ def iter_fasta(path: str | Path) -> Iterator[tuple[str, str]]:
         yield name, "".join(chunks)
 
 
+def _iter_fasta_cached(path: Path, cache_dir: Path | None = None) -> Iterator[tuple[str, str]]:
+    """Stream normalized (tx_id, upper_dna_seq) using a compact disk cache when possible."""
+    import hashlib
+    import os
+    import struct
+
+    st = path.stat()
+    sig = f"{path.resolve()}:{st.st_size}:{st.st_mtime_ns}".encode("utf-8")
+    digest = hashlib.sha256(sig).hexdigest()[:16]
+    base_dir = cache_dir or (Path.home() / ".synaptik" / "cache")
+    cache_file = base_dir / f"tx_{digest}.bin"
+
+    if cache_file.exists():
+        try:
+            with open(cache_file, "rb") as fh:
+                magic = fh.read(8)
+                if magic == b"SYNTXC01":
+                    while True:
+                        hdr = fh.read(8)
+                        if not hdr or len(hdr) < 8:
+                            break
+                        id_len, seq_len = struct.unpack("<II", hdr)
+                        tx_id = fh.read(id_len).decode("utf-8", errors="replace")
+                        seq = fh.read(seq_len).decode("ascii", errors="replace")
+                        yield tx_id, seq
+                    return
+        except OSError:
+            pass
+
+    # Build cache atomically on first read; fall back to direct streaming if unwritable
+    tmp_file = None
+    fh_out = None
+    try:
+        base_dir.mkdir(parents=True, exist_ok=True)
+        tmp_file = base_dir / f"tx_{digest}.{os.getpid()}.tmp"
+        fh_out = open(tmp_file, "wb")
+        fh_out.write(b"SYNTXC01")
+    except OSError:
+        fh_out = None
+
+    try:
+        for tx_id, raw_seq in iter_fasta(path):
+            seq = raw_seq.upper().replace("U", "T")
+            if fh_out is not None:
+                id_b = tx_id.encode("utf-8", errors="replace")
+                seq_b = seq.encode("ascii", errors="replace")
+                fh_out.write(struct.pack("<II", len(id_b), len(seq_b)))
+                fh_out.write(id_b)
+                fh_out.write(seq_b)
+            yield tx_id, seq
+        if fh_out is not None and tmp_file is not None:
+            fh_out.close()
+            fh_out = None
+            os.replace(tmp_file, cache_file)
+    finally:
+        if fh_out is not None:
+            fh_out.close()
+            if tmp_file is not None and tmp_file.exists():
+                tmp_file.unlink(missing_ok=True)
+
+
 def reverse_complement(seq: str) -> str:
     return seq.translate(_COMPLEMENT)[::-1]
 
@@ -323,28 +384,51 @@ class SpecificityScreener:
 
             if seed_index:
                 seen: set[tuple[str, int]] = set()
-                for slen in seed_lengths:
-                    for i in range(tx_len - slen + 1):
-                        entries = seed_index.get(seq[i : i + slen])
-                        if not entries:
-                            continue
-                        for strand, offset, _ in entries:
-                            start = i - offset
-                            if start < 0 or start + L > tx_len:
+                if len(seed_index) <= 32:
+                    for seed, entries in seed_index.items():
+                        pos = seq.find(seed)
+                        while pos != -1:
+                            for strand, offset, _ in entries:
+                                start = pos - offset
+                                if start < 0 or start + L > tx_len:
+                                    continue
+                                key = (strand, start)
+                                if key in seen:
+                                    continue
+                                seen.add(key)
+                                window = seq[start : start + L]
+                                mm = _count_mismatches(
+                                    probes[strand], window, self.max_mismatches
+                                )
+                                if mm is not None:
+                                    res.hits.append(OffTargetHit(
+                                        transcript_id=tx_id, position=start,
+                                        strand=strand, n_mismatches=mm,
+                                        aligned_sequence=window))
+                            pos = seq.find(seed, pos + 1)
+                else:
+                    for slen in seed_lengths:
+                        for i in range(tx_len - slen + 1):
+                            entries = seed_index.get(seq[i : i + slen])
+                            if not entries:
                                 continue
-                            key = (strand, start)
-                            if key in seen:
-                                continue
-                            seen.add(key)
-                            window = seq[start : start + L]
-                            mm = _count_mismatches(
-                                probes[strand], window, self.max_mismatches
-                            )
-                            if mm is not None:
-                                res.hits.append(OffTargetHit(
-                                    transcript_id=tx_id, position=start,
-                                    strand=strand, n_mismatches=mm,
-                                    aligned_sequence=window))
+                            for strand, offset, _ in entries:
+                                start = i - offset
+                                if start < 0 or start + L > tx_len:
+                                    continue
+                                key = (strand, start)
+                                if key in seen:
+                                    continue
+                                seen.add(key)
+                                window = seq[start : start + L]
+                                mm = _count_mismatches(
+                                    probes[strand], window, self.max_mismatches
+                                )
+                                if mm is not None:
+                                    res.hits.append(OffTargetHit(
+                                        transcript_id=tx_id, position=start,
+                                        strand=strand, n_mismatches=mm,
+                                        aligned_sequence=window))
             else:
                 for strand, probe in probes.items():
                     for i in range(tx_len - L + 1):
@@ -367,15 +451,16 @@ class SpecificityScreener:
         return res
 
     def screen_against_fasta(
-        self, oligo: str, fasta_path: str | Path
+        self, oligo: str, fasta_path: str | Path, use_cache: bool = True
     ) -> SpecificityResult:
         path = Path(fasta_path)
         if not path.exists():
             res = SpecificityResult(status=ScreenStatus.NOT_SCREENED, oligo=oligo)
             res.notes.append(f"Reference not found: {path}")
             return res
+        refs = _iter_fasta_cached(path) if use_cache else iter_fasta(path)
         return self.screen_oligo(
-            oligo, iter_fasta(path), reference_name=path.name,
+            oligo, refs, reference_name=path.name,
             status=ScreenStatus.TRANSCRIPTOME)
 
     def screen_batch(
@@ -457,39 +542,71 @@ class SpecificityScreener:
 
             if seed_index:
                 seen_per_idx: dict[int, set[tuple[str, int]]] = defaultdict(set)
-                for slen in seed_lengths:
-                    if tx_len < slen:
-                        continue
-                    for i in range(tx_len - slen + 1):
-                        entries = seed_index.get(seq[i : i + slen])
-                        if not entries:
+                if len(seed_index) <= 32:
+                    for seed, entries in seed_index.items():
+                        pos = seq.find(seed)
+                        while pos != -1:
+                            for idx, strand, offset, L in entries:
+                                res = results[idx]
+                                if res.truncated:
+                                    continue
+                                start = pos - offset
+                                if start < 0 or start + L > tx_len:
+                                    continue
+                                key = (strand, start)
+                                if key in seen_per_idx[idx]:
+                                    continue
+                                seen_per_idx[idx].add(key)
+                                window = seq[start : start + L]
+                                mm = _count_mismatches(
+                                    probes_list[idx][strand], window, self.max_mismatches
+                                )
+                                if mm is not None:
+                                    res.hits.append(OffTargetHit(
+                                        transcript_id=tx_id, position=start,
+                                        strand=strand, n_mismatches=mm,
+                                        aligned_sequence=window))
+                                    if len(res.hits) > self.max_hits:
+                                        res.truncated = True
+                                        res.notes.append(
+                                            f"Stopped after {self.max_hits} hits: this oligo is "
+                                            "clearly non-specific."
+                                        )
+                            pos = seq.find(seed, pos + 1)
+                else:
+                    for slen in seed_lengths:
+                        if tx_len < slen:
                             continue
-                        for idx, strand, offset, L in entries:
-                            res = results[idx]
-                            if res.truncated:
+                        for i in range(tx_len - slen + 1):
+                            entries = seed_index.get(seq[i : i + slen])
+                            if not entries:
                                 continue
-                            start = i - offset
-                            if start < 0 or start + L > tx_len:
-                                continue
-                            key = (strand, start)
-                            if key in seen_per_idx[idx]:
-                                continue
-                            seen_per_idx[idx].add(key)
-                            window = seq[start : start + L]
-                            mm = _count_mismatches(
-                                probes_list[idx][strand], window, self.max_mismatches
-                            )
-                            if mm is not None:
-                                res.hits.append(OffTargetHit(
-                                    transcript_id=tx_id, position=start,
-                                    strand=strand, n_mismatches=mm,
-                                    aligned_sequence=window))
-                                if len(res.hits) > self.max_hits:
-                                    res.truncated = True
-                                    res.notes.append(
-                                        f"Stopped after {self.max_hits} hits: this oligo is "
-                                        "clearly non-specific."
-                                    )
+                            for idx, strand, offset, L in entries:
+                                res = results[idx]
+                                if res.truncated:
+                                    continue
+                                start = i - offset
+                                if start < 0 or start + L > tx_len:
+                                    continue
+                                key = (strand, start)
+                                if key in seen_per_idx[idx]:
+                                    continue
+                                seen_per_idx[idx].add(key)
+                                window = seq[start : start + L]
+                                mm = _count_mismatches(
+                                    probes_list[idx][strand], window, self.max_mismatches
+                                )
+                                if mm is not None:
+                                    res.hits.append(OffTargetHit(
+                                        transcript_id=tx_id, position=start,
+                                        strand=strand, n_mismatches=mm,
+                                        aligned_sequence=window))
+                                    if len(res.hits) > self.max_hits:
+                                        res.truncated = True
+                                        res.notes.append(
+                                            f"Stopped after {self.max_hits} hits: this oligo is "
+                                            "clearly non-specific."
+                                        )
 
             for idx in unseeded_indices:
                 res = results[idx]
@@ -515,13 +632,14 @@ class SpecificityScreener:
         return results
 
     def screen_batch_against_fasta(
-        self, oligos: list[str], fasta_path: str | Path
+        self, oligos: list[str], fasta_path: str | Path, use_cache: bool = True
     ) -> list[SpecificityResult]:
         path = Path(fasta_path)
         if not path.exists():
             return [unscreened(o, f"Reference not found: {path}") for o in oligos]
+        refs = _iter_fasta_cached(path) if use_cache else iter_fasta(path)
         return self.screen_batch(
-            oligos, iter_fasta(path), reference_name=path.name,
+            oligos, refs, reference_name=path.name,
             status=ScreenStatus.TRANSCRIPTOME)
 
 
