@@ -10,10 +10,11 @@ after a crash costs only the incomplete items.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Callable, Iterable
 
 from .extract.llm import LLMExtractor
@@ -153,7 +154,8 @@ class Pipeline:
         self.pubmed = PubMedHarvester(
             self.session, api_key=ncbi_api_key, drift=self.drift
         )
-        self.biorxiv = BioRxivHarvester(self.session, drift=self.drift)
+        self.biorxiv = BioRxivHarvester(self.session, server="biorxiv", drift=self.drift)
+        self.medrxiv = BioRxivHarvester(self.session, server="medrxiv", drift=self.drift)
         self.extractor = extractor
         self.journals = JournalQualityResolver(scimago_csv)
         self.labs = LabResolver()
@@ -242,6 +244,7 @@ class Pipeline:
         self,
         queries: dict[str, str] | None = None,
         max_per_query: int = 2000,
+        concurrency: int = 5,
         include_preprints: bool = True,
         progress: Callable[[str], None] | None = None,
     ) -> PipelineStats:
@@ -253,24 +256,89 @@ class Pipeline:
         http_failures_before = self.session.n_failures
 
         collected: list[SourceMetadata] = []
-        for name, q in queries.items():
-            say(f"harvesting '{name}'...")
-            n_before = st.sources_new
-            for meta in self.epmc.search(q, max_results=max_per_query):
-                st.sources_seen += 1
-                if self.store.has_source(meta.source_id):
-                    continue
-                if meta.is_preprint and not include_preprints:
-                    continue
-                collected.append(meta)
-                st.sources_new += 1
-                if len(collected) >= 500:
-                    self._flush_sources(collected)
-                    collected = []
-            say(f"  '{name}': +{st.sources_new - n_before} new")
 
-        if collected:
-            self._flush_sources(collected)
+        def _flush_batch() -> None:
+            nonlocal collected
+            if collected:
+                self._flush_sources(collected)
+                collected = []
+
+        def _harvest_single_query(name: str, q: str) -> tuple[str, list[SourceMetadata]]:
+            results = []
+            for meta in self.epmc.search(q, max_results=max_per_query):
+                results.append(meta)
+            return (name, results)
+
+        if concurrency <= 1 or len(queries) <= 1:
+            for name, q in queries.items():
+                say(f"harvesting '{name}'...")
+                n_before = st.sources_new
+                for meta in self.epmc.search(q, max_results=max_per_query):
+                    st.sources_seen += 1
+                    if self.store.has_source(meta.source_id):
+                        continue
+                    if meta.is_preprint and not include_preprints:
+                        continue
+                    collected.append(meta)
+                    st.sources_new += 1
+                    if len(collected) >= 500:
+                        _flush_batch()
+                say(f"  '{name}': +{st.sources_new - n_before} new")
+            if include_preprints:
+                start_date = "2020-01-01"
+                end_date = date.today().isoformat()
+                for srv_name, harvester in [("biorxiv", self.biorxiv), ("medrxiv", self.medrxiv)]:
+                    say(f"harvesting {srv_name} preprints...")
+                    for name, q in queries.items():
+                        n_before = st.sources_new
+                        for meta in harvester.fetch_range(start_date, end_date, max_results=max_per_query, query=q):
+                            st.sources_seen += 1
+                            if self.store.has_source(meta.source_id):
+                                continue
+                            collected.append(meta)
+                            st.sources_new += 1
+                            if len(collected) >= 500:
+                                _flush_batch()
+                        say(f"  '{srv_name}:{name}': +{st.sources_new - n_before} new")
+        else:
+            say(f"harvesting {len(queries)} query sets (concurrency={concurrency})...")
+            tasks = {}
+            with ThreadPoolExecutor(max_workers=concurrency) as executor:
+                for name, q in queries.items():
+                    f = executor.submit(_harvest_single_query, name, q)
+                    tasks[f] = f"epmc:{name}"
+                if include_preprints:
+                    start_date = "2020-01-01"
+                    end_date = date.today().isoformat()
+                    for srv_name, harvester in [("biorxiv", self.biorxiv), ("medrxiv", self.medrxiv)]:
+                        for name, q in queries.items():
+                            def _make_fn(h=harvester, q_str=q):
+                                return lambda: list(h.fetch_range(start_date, end_date, max_results=max_per_query, query=q_str))
+                            f = executor.submit(_make_fn(harvester, q))
+                            tasks[f] = f"{srv_name}:{name}"
+
+                for future in as_completed(tasks):
+                    task_name = tasks[future]
+                    try:
+                        res = future.result()
+                        metas = res[1] if isinstance(res, tuple) else res
+                    except Exception as e:
+                        log.warning("Harvest task failed for %s: %s", task_name, e)
+                        metas = []
+                    n_before = st.sources_new
+                    for meta in metas:
+                        st.sources_seen += 1
+                        if self.store.has_source(meta.source_id):
+                            continue
+                        if meta.is_preprint and not include_preprints:
+                            continue
+                        collected.append(meta)
+                        st.sources_new += 1
+                        if len(collected) >= 500:
+                            _flush_batch()
+                    say(f"  '{task_name}': +{st.sources_new - n_before} new (seen {len(metas)})")
+
+        _flush_batch()
 
         st.http_failures = self.session.n_failures - http_failures_before
         st.elapsed_seconds = time.time() - t0
@@ -308,6 +376,7 @@ class Pipeline:
     def fetch_full_texts(
         self,
         limit: int | None = None,
+        max_workers: int = 6,
         progress: Callable[[str], None] | None = None,
     ) -> PipelineStats:
         st = PipelineStats()
@@ -324,10 +393,17 @@ class Pipeline:
         if limit:
             rows = rows[:limit]
 
-        say(f"fetching full text for {len(rows)} papers...")
-        for i, row in enumerate(rows, 1):
-            meta = SourceMetadata.model_validate_json(row["payload"])
-            sections = self.epmc.fetch_full_text(meta)
+        if not rows:
+            say("no papers pending full-text fetch.")
+            st.elapsed_seconds = time.time() - t0
+            return st
+
+        say(f"fetching full text for {len(rows)} papers (max_workers={max_workers})...")
+        metas = [SourceMetadata.model_validate_json(r["payload"]) for r in rows]
+
+        count = 0
+        for meta, sections in self.epmc.fetch_full_texts_concurrent(metas, max_workers=max_workers):
+            count += 1
             if not sections:
                 st.fulltext_missing += 1
                 continue
@@ -343,9 +419,10 @@ class Pipeline:
                 meta.source_id, meta.title, sections.get("abstract", "")
             )
             st.fulltext_fetched += 1
-            if i % 50 == 0:
+            if count % 50 == 0 or count == len(rows):
                 self.store.conn.commit()
-                say(f"  {i}/{len(rows)} ({st.fulltext_fetched} retrieved)")
+                say(f"  {count}/{len(rows)} ({st.fulltext_fetched} retrieved)")
+
         self.store.conn.commit()
         st.http_failures = self.session.n_failures - http_failures_before
         st.elapsed_seconds = time.time() - t0

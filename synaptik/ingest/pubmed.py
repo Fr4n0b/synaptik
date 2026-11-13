@@ -10,6 +10,7 @@ journal version.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import logging
 from datetime import date, datetime
 from typing import Iterator
@@ -68,20 +69,39 @@ class PubMedHarvester:
                 break
         return pmids[:max_results]
 
-    def fetch_metadata(self, pmids: list[str], batch_size: int = 200) -> Iterator[SourceMetadata]:
-        """efetch in batches; parses MeSH terms and publication types."""
-        for i in range(0, len(pmids), batch_size):
-            batch = pmids[i : i + batch_size]
+    def fetch_metadata(
+        self,
+        pmids: list[str],
+        batch_size: int = 200,
+        max_workers: int = 3,
+    ) -> Iterator[SourceMetadata]:
+        """efetch in batches with concurrent worker threads; parses MeSH terms and publication types."""
+        if not pmids:
+            return
+
+        batches = [pmids[i : i + batch_size] for i in range(0, len(pmids), batch_size)]
+
+        def _fetch_and_parse_batch(batch: list[str]) -> list[SourceMetadata]:
             params = self._auth({
                 "db": "pubmed", "id": ",".join(batch), "retmode": "xml",
             })
             xml = self.s.get_text(f"{EUTILS}/efetch.fcgi", params)
             if not xml:
-                continue
+                return []
             try:
-                yield from self._parse_efetch(xml)
+                return list(self._parse_efetch(xml))
             except etree.XMLSyntaxError as e:
-                log.warning("efetch parse failed for batch %d: %s", i, e)
+                log.warning("efetch parse failed for batch of %d PMIDs: %s", len(batch), e)
+                return []
+
+        if len(batches) <= 1 or max_workers <= 1:
+            for b in batches:
+                yield from _fetch_and_parse_batch(b)
+        else:
+            workers = min(max_workers, len(batches))
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                for batch_records in executor.map(_fetch_and_parse_batch, batches):
+                    yield from batch_records
 
     @staticmethod
     def _parse_efetch(xml: str) -> Iterator[SourceMetadata]:
@@ -149,7 +169,7 @@ class BioRxivHarvester:
         self.drift = drift
 
     def fetch_range(
-        self, start: str, end: str, max_results: int = 2000
+        self, start: str, end: str, max_results: int = 2000, query: str | None = None
     ) -> Iterator[SourceMetadata]:
         """start/end as 'YYYY-MM-DD'. Paginates in blocks of 100."""
         cursor = 0
@@ -164,10 +184,20 @@ class BioRxivHarvester:
             if not items:
                 return
             for it in items:
+                if query:
+                    target_text = f"{it.get('title', '')} {it.get('abstract', '')}".lower()
+                    q_lower = query.lower().strip()
+                    tokens = [t for t in q_lower.replace('"', '').split() if len(t) > 2]
+                    if not tokens:
+                        tokens = [t for t in q_lower.split() if t]
+                    if not any(t in target_text for t in tokens):
+                        continue
                 meta = self._parse(it)
                 if meta:
                     got += 1
                     yield meta
+                    if got >= max_results:
+                        return
             msgs = data.get("messages") or [{}]
             total = int(msgs[0].get("total", 0) or 0)
             cursor += len(items)

@@ -59,14 +59,23 @@ from enum import Enum
 from pathlib import Path
 from typing import Iterable, Iterator
 
-# Mismatch tolerance that matters, by mechanism.
+# Mismatch tolerance empirically anchored to published ASO off-target datasets:
 #
-# Gapmers are the more permissive case: RNase H1 cleaves duplexes that carry
-# mismatches, so partially complementary transcripts are still degraded, and
-# published analyses have found off-target activity at 2-3 mismatches. Steric
-# splice-switching oligos need a more complete duplex to block a splice site.
-# These thresholds set how far the search extends; they are deliberately
-# generous, because missing a hit is the costly error here.
+# 1. RNase H1 gapmers (DEFAULT_MAX_MISMATCHES["gapmer"] = 3):
+#    Systematic transcriptome-wide off-target profiling (Kamola et al., Nucleic
+#    Acids Res 2015, 43:8638-8650; Burel et al., Nucleic Acids Res 2016,
+#    44:2093-2109; Yoshida et al., Nucleic Acids Res 2018, 46:10984-10996)
+#    demonstrates that RNase H1 retains cleavage activity on off-target RNA
+#    duplexes harboring 1-2 mismatches and, when mismatches fall in the 2'-MOE
+#    or LNA wings rather than the central 7-10 nt DNA gap, up to 3 mismatches.
+#    Transcripts with >= 4 mismatches show negligible cleavage (<5% knockdown).
+#
+# 2. Steric splice-switching oligos (DEFAULT_MAX_MISMATCHES["splice_switch"] = 2):
+#    Uniformly modified 2'-MOE/PMO splice-switching ASOs (Hua et al., Am J Hum
+#    Genet 2008; Bennett & Swayze, Annu Rev Pharmacol Toxicol 2010) do not
+#    recruit RNase H1 and rely on competitive occupancy of splice motifs; 1-2
+#    mismatches reduce duplex affinity by ~10-100x, while >= 3 mismatches abolish
+#    steric blockade at therapeutic CSF concentrations (~100-500 nM).
 DEFAULT_MAX_MISMATCHES = {"gapmer": 3, "splice_switch": 2}
 
 # Human transcriptome scale, used only to report what fraction of a realistic

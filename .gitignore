@@ -31,3 +31,6 @@ CRISPRGeneEffect.csv
 .DS_Store
 .idea/
 .vscode/
+
+# Antigravity / Teamwork / Claude agent instructions
+CLAUDE.md

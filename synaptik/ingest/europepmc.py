@@ -14,6 +14,7 @@ Endpoints used:
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 import re
 from datetime import date, datetime
@@ -219,6 +220,50 @@ class EuropePMCHarvester:
         except etree.XMLSyntaxError as e:
             log.warning("XML parse failed for %s: %s", pmcid, e)
             return None
+
+    def fetch_full_texts_concurrent(
+        self,
+        metas: list[SourceMetadata],
+        max_workers: int = 6,
+    ) -> Iterator[tuple[SourceMetadata, dict[str, str] | None]]:
+        """Fetch and parse JATS full text for multiple papers concurrently.
+
+        Submits full-text XML downloads and parsing to a ThreadPoolExecutor,
+        yielding (meta, sections) as tasks complete. Papers without a PMCID
+        yield (meta, None) immediately without thread pool submission.
+        """
+        if not metas:
+            return
+
+        to_fetch: list[SourceMetadata] = []
+        for m in metas:
+            if m.pmcid:
+                to_fetch.append(m)
+            else:
+                yield (m, None)
+
+        if not to_fetch:
+            return
+
+        if max_workers <= 1 or len(to_fetch) <= 1:
+            for m in to_fetch:
+                yield (m, self.fetch_full_text(m))
+            return
+
+        workers = min(max_workers, len(to_fetch))
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            future_to_meta = {
+                executor.submit(self.fetch_full_text, meta): meta
+                for meta in to_fetch
+            }
+            for future in as_completed(future_to_meta):
+                meta = future_to_meta[future]
+                try:
+                    sections = future.result()
+                except Exception as e:
+                    log.warning("Concurrent full-text fetch failed for %s: %s", meta.pmcid, e)
+                    sections = None
+                yield (meta, sections)
 
     @staticmethod
     def parse_jats(xml: str) -> dict[str, str]:

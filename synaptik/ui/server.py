@@ -487,6 +487,338 @@ def create_app(db_path: str, enable_drugs: bool = False,
             },
         })
 
+    # ---------------- clinical endpoints ----------------
+
+    @app.route("/api/clinical/allometry", methods=["POST"])
+    def api_clinical_allometry():
+        body = request.get_json(force=True, silent=True)
+        if body is None:
+            return jsonify({"error": "Missing JSON request body"}), 400
+
+        noael_mg = body.get("noael_mg")
+        noael_mg_kg = body.get("noael_mg_kg")
+        if noael_mg is None and noael_mg_kg is None:
+            noael_mg = 30.0
+        try:
+            noael_val = float(noael_mg) if noael_mg is not None else None
+            noael_kg_val = float(noael_mg_kg) if noael_mg_kg is not None else None
+            nhp_wt = float(body.get("nhp_weight_kg", 3.0) or 3.0)
+            nhp_vol = float(body.get("nhp_volume_ml", 15.0) or 15.0)
+            adult_vol = float(body.get("adult_volume_ml", 140.0) or 140.0)
+            pedia_vol = float(body.get("pediatric_volume_ml", 65.0) or 65.0)
+            sf = float(body.get("safety_factor", 10.0) or 10.0)
+        except (TypeError, ValueError) as err:
+            return jsonify({"error": f"Invalid numerical parameter: {err}"}), 400
+
+        from ..clinical.allometry import calculate_allometric_dose
+        try:
+            adult_res = calculate_allometric_dose(
+                noael_mg=noael_val,
+                noael_mg_kg=noael_kg_val,
+                nhp_weight_kg=nhp_wt,
+                nhp_volume_ml=nhp_vol,
+                human_volume_ml=adult_vol,
+                safety_factor=sf,
+                cohort_name="adult",
+                acknowledge_not_clinical=True,
+            )
+            pedia_res = calculate_allometric_dose(
+                noael_mg=noael_val,
+                noael_mg_kg=noael_kg_val,
+                nhp_weight_kg=nhp_wt,
+                nhp_volume_ml=nhp_vol,
+                human_volume_ml=pedia_vol,
+                safety_factor=sf,
+                cohort_name="pediatric",
+                acknowledge_not_clinical=True,
+            )
+        except ValueError as err:
+            return jsonify({"error": str(err)}), 400
+
+        return jsonify({
+            "disclaimer": "RESEARCH PLANNING ONLY — NOT A CLINICAL DOSE RECOMMENDATION",
+            "is_clinical_recommendation": False,
+            "author": "Francesco Nobile (ORCID: 0009-0001-9477-3332)",
+            "noael_mg": adult_res.noael_nhp_mg,
+            "nhp_csf_volume_ml": nhp_vol,
+            "safety_factor": sf,
+            "adult": {
+                "csf_volume_ml": adult_res.human_volume_ml,
+                "scaling_ratio": round(adult_res.scaling_ratio, 4),
+                "hed_mg": round(adult_res.hed_mg, 4),
+                "mrsd_mg": round(adult_res.mrsd_mg, 4),
+            },
+            "pediatric": {
+                "csf_volume_ml": pedia_res.human_volume_ml,
+                "scaling_ratio": round(pedia_res.scaling_ratio, 4),
+                "hed_mg": round(pedia_res.hed_mg, 4),
+                "mrsd_mg": round(pedia_res.mrsd_mg, 4),
+            },
+            "methodology": "CSF volume allometric scaling (Preclinical Research Planning / FDA 2005 Guidance)",
+        })
+
+    @app.route("/api/clinical/pkpd", methods=["POST"])
+    def api_clinical_pkpd():
+        body = request.get_json(force=True, silent=True)
+        if body is None:
+            return jsonify({"error": "Missing JSON request body"}), 400
+
+        try:
+            dose_mg = float(body.get("dose_mg", 50.0) or 50.0)
+            route = str(body.get("route", "bolus") or "bolus").strip().lower()
+            csf_t12 = float(body.get("csf_half_life_days", 24.0) or 24.0)
+            tis_t12 = float(body.get("tissue_half_life_days", 135.0) or 135.0)
+            days = int(body.get("duration_days", 360) or 360)
+            infusion_h = float(body.get("infusion_hours", 24.0) or 24.0)
+        except (TypeError, ValueError) as err:
+            return jsonify({"error": f"Invalid numerical parameter: {err}"}), 400
+
+        if route not in ("bolus", "catheter"):
+            return jsonify({"error": "Unsupported administration route. Must be 'bolus' or 'catheter'"}), 400
+
+        from ..clinical.pkpd import simulate_intrathecal_pkpd
+        try:
+            sim = simulate_intrathecal_pkpd(
+                dose_mg=dose_mg,
+                route=route,
+                csf_half_life_days=csf_t12,
+                tissue_half_life_days=tis_t12,
+                duration_days=days,
+                infusion_hours=infusion_h,
+            )
+        except ValueError as err:
+            return jsonify({"error": str(err)}), 400
+
+        return jsonify({
+            "author": "Francesco Nobile (ORCID: 0009-0001-9477-3332)",
+            "dose_mg": sim.dose_mg,
+            "route": sim.route,
+            "kinetics": sim.kinetics.to_dict(),
+            "exposure": sim.exposure.to_dict(),
+            "pharmacodynamics": sim.pharmacodynamics.to_dict(),
+            "timepoints": [
+                {
+                    "day": p.day,
+                    "csf_conc_ug_ml": round(p.c_csf_ug_ml, 2),
+                    "tissue_conc_ug_g": round(p.c_tissue_ug_g, 2),
+                    "pd_effect_pct": round(p.target_engagement_pct, 1),
+                    "nfl_reduction_pct": round(p.nfl_reduction_pct, 1),
+                }
+                for p in sim.trajectory
+                if p.day in {0, 1, 7, 14, 28, 60, 90, 180, 270, 360}
+            ],
+        })
+
+    @app.route("/api/clinical/escalate", methods=["POST"])
+    def api_clinical_escalate():
+        body = request.get_json(force=True, silent=True)
+        if body is None:
+            return jsonify({"error": "Missing JSON request body"}), 400
+
+        design = str(body.get("design", "boin") or "boin").strip().lower()
+        if design not in ("boin", "3+3", "mtpi"):
+            return jsonify({"error": f"Invalid escalation design: {design}. Must be 'boin', '3+3', or 'mtpi'"}), 400
+
+        try:
+            target_phi = float(body.get("target_phi", 0.25) or 0.25)
+            dose_levels = [float(x) for x in (body.get("dose_levels") or [10.0, 25.0, 50.0, 100.0, 150.0])]
+            current_level = int(body.get("current_level", 1) or 1)
+        except (TypeError, ValueError) as err:
+            return jsonify({"error": f"Invalid parameter format: {err}"}), 400
+
+        if target_phi <= 0.0 or target_phi >= 1.0:
+            return jsonify({"error": "Target toxicity rate phi must be strictly between 0 and 1"}), 400
+
+        if current_level < 1 or current_level > len(dose_levels):
+            return jsonify({"error": f"current_level {current_level} is out of bounds for dose_levels (1..{len(dose_levels)})"}), 400
+
+        from ..clinical.escalation import BOINEscalationEngine, CohortOutcome, MTPIEngine, ThreePlusThreeEngine
+
+        if design == "boin":
+            engine = BOINEscalationEngine(target_phi=target_phi, dose_levels=dose_levels)
+        elif design == "3+3":
+            engine = ThreePlusThreeEngine(dose_levels=dose_levels)
+        else:
+            engine = MTPIEngine(target_phi=target_phi, dose_levels=dose_levels)
+
+        history_raw = body.get("history") or []
+        history_records: list[CohortOutcome] = []
+        eval_n = int(body.get("n_patients", 3) or 3)
+        eval_dlts = int(body.get("dlts", 0) or 0)
+
+        if isinstance(history_raw, list) and len(history_raw) > 0:
+            for item in history_raw:
+                try:
+                    lvl = int(item.get("dose_level", 1))
+                    mg = float(item.get("dose_mg", dose_levels[lvl - 1] if 1 <= lvl <= len(dose_levels) else 10.0))
+                    n_pts = int(item.get("n_patients", item.get("n", item.get("n_enrolled", 3))))
+                    d_count = int(item.get("dlts", item.get("n_dlts", 0)))
+                    history_records.append(CohortOutcome(dose_level=lvl, dose_mg=mg, n_enrolled=n_pts, n_dlts=d_count))
+                except Exception:
+                    pass
+            if history_records:
+                eval_level = history_records[-1].dose_level
+                eval_n = history_records[-1].n_enrolled
+                eval_dlts = history_records[-1].n_dlts
+                current_level = eval_level
+
+        try:
+            decision = engine.evaluate_cohort(
+                dose_level=current_level,
+                n=eval_n,
+                dlts=eval_dlts,
+                history=history_records,
+            )
+        except ValueError as err:
+            return jsonify({"error": str(err)}), 400
+
+        rec_str = decision.action.value
+        if rec_str == "retain":
+            rec_str = "stay"
+
+        return jsonify({
+            "author": "Francesco Nobile (ORCID: 0009-0001-9477-3332)",
+            "design": decision.design,
+            "target_phi": decision.target_phi,
+            "lambda_e": round(decision.lambda_e, 3),
+            "lambda_d": round(decision.lambda_d, 3),
+            "recommendation": rec_str,
+            "recommended_dose_level": decision.next_dose_level,
+            "recommended_dose_mg": decision.next_dose_mg,
+            "rationale": decision.rationale,
+            "is_trial_stopped": decision.trial_stopped,
+            "safety_stopping_triggered": decision.trial_stopped or decision.is_dose_eliminated,
+            "dose_evaluations": [
+                {
+                    "dose_level": h.dose_level,
+                    "dose_mg": h.dose_mg,
+                    "n_patients": h.n_enrolled,
+                    "dlts": h.n_dlts,
+                    "observed_dlt_rate": round(h.n_dlts / h.n_enrolled, 3) if h.n_enrolled > 0 else 0.0,
+                    "posterior_excess_toxicity_prob": round(decision.posterior_overdose_prob, 3),
+                    "eliminated": h.dose_level in decision.eliminated_dose_levels,
+                }
+                for h in history_records
+            ],
+        })
+
+    @app.route("/api/clinical/protocol", methods=["POST"])
+    def api_clinical_protocol():
+        body = request.get_json(force=True, silent=True)
+        if body is None:
+            return jsonify({"error": "Missing JSON request body"}), 400
+
+        gene = (body.get("gene") or "STMN2").strip().upper()
+        disease = (body.get("disease") or "als").strip().lower()
+        try:
+            noael_mg = float(body.get("noael_mg", 30.0) or 30.0)
+            design = str(body.get("design", "boin") or "boin").strip().lower()
+            target_phi = float(body.get("target_phi", 0.25) or 0.25)
+            doses = [float(x) for x in (body.get("doses") or [10.0, 25.0, 50.0, 100.0, 150.0])]
+            route = str(body.get("route", "bolus") or "bolus").strip().lower()
+            sf = float(body.get("safety_factor", 10.0) or 10.0)
+        except (TypeError, ValueError) as err:
+            return jsonify({"error": f"Invalid parameter format: {err}"}), 400
+
+        from ..clinical.protocol import generate_clinical_protocol
+        try:
+            proto = generate_clinical_protocol(
+                target_gene=gene,
+                disease=disease,
+                noael_nhp_mg=noael_mg,
+                design=design,
+                target_phi=target_phi,
+                planned_doses=doses,
+                administration_route=route,
+                safety_factor=sf,
+            )
+        except Exception as err:
+            return jsonify({"error": str(err)}), 400
+
+        return jsonify(proto.to_dict())
+
+    @app.route("/api/biophysics", methods=["POST"])
+    def api_biophysics():
+        body = request.get_json(force=True, silent=True)
+        if body is None:
+            return jsonify({"error": "Missing JSON request body"}), 400
+        seq = (body.get("sequence") or body.get("target_sequence") or "").strip()
+        if not seq:
+            return jsonify({"error": "sequence is required"}), 400
+        try:
+            start = int(body.get("target_start", 0) or 0)
+            end = int(body.get("target_end", len(seq)) or len(seq))
+            duplex_dg = float(body.get("duplex_delta_g", -22.0) or -22.0)
+            competitor = str(body.get("competitor", "u1_snrnp") or "u1_snrnp")
+        except (TypeError, ValueError) as err:
+            return jsonify({"error": f"Invalid parameter: {err}"}), 400
+
+        from ..biophysics.accessibility import compute_effective_binding
+        from ..biophysics.competition import compute_steric_displacement
+        from ..biophysics.folding import compute_target_accessibility, fold_rna_mfe
+
+        try:
+            mfe, db = fold_rna_mfe(seq)
+            acc = compute_target_accessibility(seq, start, end)
+            eff = compute_effective_binding(duplex_dg, acc.delta_g_open)
+            disp = compute_steric_displacement(max(eff.kd_effective_nm, 1e-6), competitor_name=competitor)
+        except ValueError as err:
+            return jsonify({"error": str(err)}), 400
+
+        return jsonify({
+            "author": "Francesco Nobile (ORCID: 0009-0001-9477-3332)",
+            "mfe_kcal_mol": mfe,
+            "dot_bracket": db,
+            "accessibility": acc.to_dict(),
+            "effective_binding": eff.to_dict(),
+            "steric_displacement": disp.to_dict(),
+        })
+
+    @app.route("/api/twin", methods=["POST"])
+    def api_twin():
+        body = request.get_json(force=True, silent=True)
+        if body is None:
+            return jsonify({"error": "Missing JSON request body"}), 400
+        try:
+            patient_id = str(body.get("patient_id", "EPHEMERAL-PT") or "EPHEMERAL-PT")
+            age = float(body.get("age_years", 55.0) or 55.0)
+            site = str(body.get("onset_site", "limb") or "limb")
+            duration = float(body.get("disease_duration_months", 12.0) or 12.0)
+            alsfrs = float(body.get("baseline_alsfrs_r", 38.0) or 38.0)
+            nfl = float(body["baseline_plasma_nfl"]) if body.get("baseline_plasma_nfl") is not None else None
+            slope = float(body["baseline_slope"]) if body.get("baseline_slope") is not None else None
+            months = int(body.get("duration_months", 18) or 18)
+            twins = int(body.get("n_twins", 1000) or 1000)
+            seed = int(body.get("random_seed", 42)) if body.get("random_seed") is not None else 42
+        except (TypeError, ValueError) as err:
+            return jsonify({"error": f"Invalid parameter: {err}"}), 400
+
+        from ..twin.bayesian import evaluate_treatment_efficacy
+        from ..twin.models import PatientBaseline, VisitObservation
+        from ..twin.twin_generator import generate_counterfactual_cohort
+
+        try:
+            baseline = PatientBaseline(
+                patient_id=patient_id,
+                age_years=age,
+                onset_site=site,
+                disease_duration_months=duration,
+                baseline_alsfrs_r=alsfrs,
+                baseline_slope=slope,
+                baseline_plasma_nfl=nfl,
+            )
+            cohort = generate_counterfactual_cohort(baseline, n_twins=twins, duration_months=months, random_seed=seed)
+            out = {"cohort": cohort.to_dict(), "author": "Francesco Nobile (ORCID: 0009-0001-9477-3332)"}
+            raw_visits = body.get("visits")
+            if isinstance(raw_visits, list) and len(raw_visits) >= 2:
+                visits = [VisitObservation(month=float(v["month"]), alsfrs_score=float(v["alsfrs_score"])) for v in raw_visits]
+                eff = evaluate_treatment_efficacy(cohort, visits)
+                out["efficacy"] = eff.to_dict()
+        except (ValueError, KeyError, TypeError) as err:
+            return jsonify({"error": str(err)}), 400
+
+        return jsonify(out)
+
     @app.errorhandler(413)
     def handle_413(e):
         return jsonify({"error": "That file is larger than 64 MB. Upload the "

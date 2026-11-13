@@ -2,6 +2,28 @@
 
 All notable changes to SYNAPTIK are recorded here.
 
+## 0.9.0 — 2026-11-13
+
+### Added
+- **3D RNA Biophysics & Steric Accessibility Engine (`synaptik biophysics` & `synaptik/biophysics/`)**:
+  - Pure-Python Zuker-style MFE dynamic programming (`V` and `W` matrices) with Turner 2004 nearest-neighbor stacking, terminal AU penalties, hairpin initiation, and ultra-stable tetraloop bonuses (`GAAA`, `UACG`).
+  - Computes thermodynamic opening penalty ($\Delta G_{\text{open}}$), effective hybridization free energy ($\Delta G_{\text{effective}}$), effective $K_d$, and competitive spliceosomal steric displacement against U1 snRNP, U2AF65/35, and TDP-43.
+- **Patient Natural History Digital Twin & Bayesian Counterfactual Control (`synaptik twin` & `synaptik/twin/`)**:
+  - Zero-PHI ephemeral Monte Carlo simulation of 1,000 matched untreated progression trajectories conditioned on PRO-ACT / Answer ALS covariates (onset site, plasma NfL, age, empirical Bayes pre-slope shrinkage).
+  - Bayesian posterior probability of disease deceleration $P(\Delta > 0 \mid \text{Data})$, Bayes Factor ($BF_{10}$), and research-planning counterfactual report export.
+- **Clinical Translational Pharmacology & Adaptive Escalation (`synaptik clinical` & `synaptik/clinical/`)**:
+  - CSF volumetric allometric scaling (NHP to adult and pediatric cohorts), two-compartment intrathecal PK/PD simulation (bolus vs catheter), and BOIN / 3+3 / mTPI adaptive dose escalation engines.
+  - Hard safety guardrails: `calculate_allometric_dose()` requires `acknowledge_not_clinical=True` and marks every output as `RESEARCH PLANNING ONLY — NOT A CLINICAL DOSE RECOMMENDATION`.
+- **Concurrent Rate-Limited Literature Harvesting & Preprint Weighting (`synaptik/ingest/`)**:
+  - Thread-safe `PoliteSession` adhering to NCBI/EBI limits, plus bioRxiv/medRxiv preprint harvesting with explicit 20% discount weighting.
+- **REST API Endpoints**: Added `/api/biophysics`, `/api/twin`, `/api/clinical/allometry`, `/api/clinical/pkpd`, `/api/clinical/escalate`, and `/api/clinical/protocol`.
+
+### Fixed & Scientifically Verified
+- **Sugimoto 1995 Nearest-Neighbor Thermodynamics (`synaptik/drug/aso.py`)**:
+  - Verified all 16 RNA/DNA nearest-neighbor entries against Sugimoto et al. (*Biochemistry* 1995) Table 2 and Biopython `R_DNA_NN1`; resolved antiparallel RNA $5'\rightarrow 3'$ vs DNA $5'\rightarrow 3'$ indexing; calibrated 2'-MOE shifts to clinical Nusinersen benchmarks ($\Delta G_{37} = -21.52\text{ kcal/mol}$, $T_m = 65.0^\circ\text{C}$).
+- **Honest Scientific Claims & Safety Guardrails (`synaptik/drug/specificity.py`, `synaptik/nof1/pipeline.py`, `tests/test_safety_claims.py`)**:
+  - Seed-and-extend transcriptome-scale off-target screening returning `NOT_SCREENED` when no reference is provided; computed CpG/TLR9 motif counts; retitled generated documents as computational drafts; documented published mismatch tolerances (`Kamola et al. 2015`, `Yoshida et al. 2018`, `Hua et al. 2008`).
+
 ## 0.8.0 — 2026-11-12
 
 ### Added

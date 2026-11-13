@@ -52,17 +52,19 @@ class ASOChemistry(str, Enum):
 # --------------------------------------------------------------------------
 # Nearest-neighbor thermodynamic parameters (DNA ASO : RNA target)
 # Enthalpy (dH) in kcal/mol, Entropy (dS) in cal/(mol*K)
-# From Sugimoto et al. Biochemistry 1995, SantaLucia PNAS 1998.
+# From Sugimoto et al. Biochemistry 1995 (34:11211-11216), Table 2.
+# Verified against Biopython Bio.SeqUtils.MeltingTemp.R_DNA_NN1.
 # --------------------------------------------------------------------------
-NN_DNA_RNA: dict[tuple[str, str], tuple[float, float]] = {
+# RNA 5'->3' indexed table (5'-r(N1 N2)-3' / 3'-d(N1' N2')-5'):
+NN_RNA_DNA: dict[tuple[str, str], tuple[float, float]] = {
     ("A", "A"): (-7.8, -21.9),
     ("A", "C"): (-5.9, -12.3),
     ("A", "G"): (-9.1, -23.5),
     ("A", "T"): (-8.3, -23.9),
-    ("C", "A"): (-9.0, -23.5),
+    ("C", "A"): (-9.0, -26.1),
     ("C", "C"): (-9.3, -23.2),
     ("C", "G"): (-16.3, -47.1),
-    ("C", "T"): (-7.0, -17.1),
+    ("C", "T"): (-7.0, -19.7),
     ("G", "A"): (-5.5, -13.5),
     ("G", "C"): (-8.0, -17.1),
     ("G", "G"): (-12.8, -31.9),
@@ -71,6 +73,28 @@ NN_DNA_RNA: dict[tuple[str, str], tuple[float, float]] = {
     ("T", "C"): (-8.6, -22.9),
     ("T", "G"): (-10.4, -28.4),
     ("T", "T"): (-11.5, -36.4),
+}
+
+# DNA ASO 5'->3' indexed table (5'-d(D1 D2)-3' / 3'-r(R1 R2)-5'):
+# Because duplexes are antiparallel, a 5'-D1 D2-3' DNA doublet pairs with a
+# 5'-comp(D2) comp(D1)-3' RNA doublet in the target strand.
+NN_DNA_RNA: dict[tuple[str, str], tuple[float, float]] = {
+    ("A", "A"): (-11.5, -36.4),  # complementary RNA 5'-UU-3' (Biopython TT/AA)
+    ("A", "C"): (-7.8, -21.6),   # complementary RNA 5'-GU-3' (Biopython GT/CA)
+    ("A", "G"): (-7.0, -19.7),   # complementary RNA 5'-CU-3' (Biopython CT/GA)
+    ("A", "T"): (-8.3, -23.9),   # complementary RNA 5'-AU-3' (Biopython AT/TA)
+    ("C", "A"): (-10.4, -28.4),  # complementary RNA 5'-UG-3' (Biopython TG/AC)
+    ("C", "C"): (-12.8, -31.9),  # complementary RNA 5'-GG-3' (Biopython GG/CC)
+    ("C", "G"): (-16.3, -47.1),  # complementary RNA 5'-CG-3' (Biopython CG/GC)
+    ("C", "T"): (-9.1, -23.5),   # complementary RNA 5'-AG-3' (Biopython AG/TC)
+    ("G", "A"): (-8.6, -22.9),   # complementary RNA 5'-UC-3' (Biopython TC/AG)
+    ("G", "C"): (-8.0, -17.1),   # complementary RNA 5'-GC-3' (Biopython GC/CG)
+    ("G", "G"): (-9.3, -23.2),   # complementary RNA 5'-CC-3' (Biopython CC/GG)
+    ("G", "T"): (-5.9, -12.3),   # complementary RNA 5'-AC-3' (Biopython AC/TG)
+    ("T", "A"): (-7.8, -23.2),   # complementary RNA 5'-UA-3' (Biopython TA/AT)
+    ("T", "C"): (-5.5, -13.5),   # complementary RNA 5'-GA-3' (Biopython GA/CT)
+    ("T", "G"): (-9.0, -26.1),   # complementary RNA 5'-CA-3' (Biopython CA/GT)
+    ("T", "T"): (-7.8, -21.9),   # complementary RNA 5'-AA-3' (Biopython AA/TT)
 }
 
 # Monomer molecular weights (sodium salt, anhydrous g/mol):
@@ -116,12 +140,19 @@ def _gc_content(seq: str) -> float:
 
 def compute_thermodynamics(
     oligo_dna: str,
-    target_rna: str,
+    target_rna: str = "",
     na_molar: float = 0.10,
     oligo_molar: float = 2.5e-7,
-    moe_shift_per_nt: float = 1.1,
+    moe_shift_per_nt: float = 1.4,
+    moe_dg_per_nt: float = -0.16,
 ) -> tuple[float, float, float, float]:
     """Calculate nearest-neighbor thermodynamics for ASO duplex.
+
+    Applies nearest-neighbor parameters for RNA/DNA hybrid duplexes
+    (Sugimoto et al. Biochemistry 1995, 34:11211-11216) with empirical 2'-MOE
+    thermal (+1.4 C/nt) and free-energy (-0.16 kcal/mol/nt) stabilization
+    benchmarked against clinical Nusinersen (Hua et al. Am J Hum Genet 2008,
+    Freier & Altmann Nucleic Acids Res 1997, Geary et al. 2001).
 
     Returns:
         (delta_h_kcal_mol, delta_s_cal_mol_k, delta_g_37_kcal_mol, tm_celsius)
@@ -131,48 +162,34 @@ def compute_thermodynamics(
     if n < 2:
         return 0.0, 0.0, 0.0, 0.0
 
-    # Duplex initiation
+    # Duplex initiation (Sugimoto 1995 Table 2)
     dh = 1.9
     ds = -3.9
 
-    # Nearest-neighbor stacking
+    # Nearest-neighbor stacking for DNA ASO paired against target RNA
     for i in range(n - 1):
         pair = (s[i], s[i + 1])
         h, ent = NN_DNA_RNA.get(pair, (-8.0, -22.0))
         dh += h
         ds += ent
 
-    # Terminal penalties
-    if s[0] in ("A", "T"):
-        dh += 2.3
-        ds += 4.6
-    else:
-        dh += 0.1
-        ds += -2.8
+    # Delta G at 37 C (310.15 K) with 2'-MOE stabilization (~ -0.16 kcal/mol per nt)
+    dg37_base = dh - 310.15 * (ds / 1000.0)
+    dg37_moe = dg37_base + (n * moe_dg_per_nt)
 
-    if s[-1] in ("A", "T"):
-        dh += 2.3
-        ds += 4.6
-    else:
-        dh += 0.1
-        ds += -2.8
-
-    # Delta G at 37 C (310.15 K)
-    dg37 = dh - 310.15 * (ds / 1000.0)
-
-    # Tm calculation with salt adjustment (SantaLucia 1998)
+    # Tm calculation with SantaLucia (1998) salt adjustment
     # R = 1.9872 cal/(mol*K)
     r_const = 1.9872
     try:
         tm_1m = (dh * 1000.0) / (ds + r_const * math.log(oligo_molar / 4.0)) - 273.15
         salt_correction = 16.6 * math.log10(max(na_molar, 1e-4))
         tm_base = tm_1m + salt_correction
-        # 2'-MOE modification thermal stabilization bonus (~1.1 C per nucleotide)
+        # 2'-MOE modification thermal stabilization bonus (~1.4 C per nucleotide)
         tm_moe = tm_base + (n * moe_shift_per_nt)
     except (ValueError, ZeroDivisionError):
         tm_moe = 55.0
 
-    return round(dh, 1), round(ds, 1), round(dg37, 2), round(tm_moe, 1)
+    return round(dh, 1), round(ds, 1), round(dg37_moe, 2), round(tm_moe, 1)
 
 
 def predict_hairpin_delta_g(oligo: str) -> float:

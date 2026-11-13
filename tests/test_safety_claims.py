@@ -260,6 +260,31 @@ def test_specificity_status_reaches_the_documents() -> None:
     check(s3["cpg_motif_count"] >= 0, "a CpG count is present in the payload")
 
 
+def test_clinical_allometry_guardrail() -> None:
+    print("\n[clinical: intrathecal dose calculations must require explicit safety acknowledgment]")
+    from synaptik.clinical.allometry import calculate_allometric_dose
+
+    # Casual invocation without acknowledgment MUST raise ValueError
+    blocked = False
+    try:
+        calculate_allometric_dose(noael_mg=30.0)
+    except ValueError as e:
+        blocked = "RESEARCH PLANNING ONLY" in str(e)
+    check(blocked, "calling calculate_allometric_dose without acknowledgment raises ValueError")
+
+    # When acknowledged, outputs must carry explicit research planning disclaimers
+    res = calculate_allometric_dose(noael_mg=30.0, acknowledge_not_clinical=True)
+    check(res.is_clinical_recommendation is False,
+          "AllometryResult marks is_clinical_recommendation as False")
+    check("RESEARCH PLANNING ONLY" in res.disclaimer,
+          "AllometryResult carries RESEARCH PLANNING ONLY disclaimer")
+    d = res.to_dict()
+    check(d.get("is_clinical_recommendation") is False,
+          "serialized dictionary exposes is_clinical_recommendation as False")
+    check("RESEARCH PLANNING ONLY" in d.get("disclaimer", ""),
+          "serialized dictionary exposes research planning disclaimer")
+
+
 def main() -> int:
     print("=" * 70)
     print("SYNAPTIK safety-claim regression suite")
@@ -273,6 +298,7 @@ def main() -> int:
     test_documents_are_not_regulatory_submissions()
     test_documents_make_no_false_experimental_claims()
     test_specificity_status_reaches_the_documents()
+    test_clinical_allometry_guardrail()
     print("\n" + "=" * 70)
     if FAILURES:
         print(f"{len(FAILURES)} FAILURE(S):")
