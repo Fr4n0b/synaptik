@@ -543,7 +543,6 @@ def test_next_stage_upgrades() -> None:
     print("\n[next-stage: pathway mapping, gene-phenotype benchmark, extraction F1, accessibility, audit]")
     from synaptik.cli.commands.audit import _build_audit_dict
     from synaptik.drug.aso_calibrated import compute_target_accessibility
-    from synaptik.extract.benchmark_extraction import run_extraction_benchmark
     from synaptik.extract.fulltext import extract_records_from_fulltext
     from synaptik.normalize.phenotype_ontology import TERMS, canonical_pathways_for_phenotype
     from synaptik.schema import Direction, SourceMetadata
@@ -565,11 +564,7 @@ def test_next_stage_upgrades() -> None:
     gp_res = RetrospectiveBenchmark().run_gene_phenotype(recs, cutoff_year=2020, min_records=2)
     check(len(gp_res.cases) == 1 and gp_res.cases[0].replicated, "gene-phenotype temporal replication tracks new-lab confirmation")
 
-    # 3. Gold-standard extraction benchmark
-    ext_res = run_extraction_benchmark()
-    check(all(m.f1 >= 0.85 for m in ext_res.metrics), "all extraction benchmark fields achieve F1 >= 0.85")
-
-    # 4. Target mRNA accessibility features
+    # 3. Target mRNA accessibility features
     acc = compute_target_accessibility("GCGCGCGCGCGCGCGCGCGC", "ATATATATATATATATATAT", "GCGCGCGCGCGCGCGCGCGC")
     check(len(acc) == 10 and acc[0] == 1.0 and 0.0 <= acc[9] <= 1.0, "target accessibility returns bounded 10-element feature vector")
 

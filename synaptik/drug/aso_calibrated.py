@@ -1,24 +1,15 @@
 """Empirically calibrated ASO gapmer knockdown potency model (v3 MLP).
 
-Fitted on non-neurogenetics unique (gene, sequence) gapmer ASO measurements
-from ASO Atlas (gene-grouped validation early stopping) with 162 features:
+Reproducibly trained via ``scripts/train_aso_mlp.py`` on non-neurogenetics
+unique (gene, sequence) gapmer ASO measurements from ASO Atlas (gene-grouped
+validation early stopping) with 162 features:
   - 20-position ASO base one-hot (10 from 5', 10 from 3')
   - Regional wing/gap thermodynamics, dinucleotide frequencies, sequence motifs
   - Local target mRNA accessibility (dG_open, stem-loop pairing probability,
     and +-50 nt flanking AU/GC composition) mapped via Ensembl GRCh38 cDNA
 
-Evaluated on a strictly held-out neurogenetics test set (n=25,839 gapmers
-across 12 genes: SOD1, MAPT, HTT, SNCA, ATXN2, APP, LRRK2, SMN1, FUS,
-C9ORF72, BACE1, APOE):
-
-  - Uncalibrated biophysical heuristic: Spearman rho = 0.1652, ROC-AUC = 0.5623
-  - V1 linear biophysical model:        Spearman rho = 0.3268, ROC-AUC = 0.6670
-  - V2 positional+thermo non-linear MLP: Spearman rho = 0.3763, ROC-AUC = 0.6929
-  - V3 target-accessibility + pos20 MLP: Spearman rho = 0.4112, ROC-AUC = 0.7146
-
-External zero-shot validation (completely independent datasets):
-  - Master_ASO_KD_clean (n=19): Spearman rho = 0.2698
-  - wetlab_KD (n=8):            Spearman rho = 0.4286
+Run ``python scripts/train_aso_mlp.py`` to reproduce training and held-out
+neurogenetics evaluation metrics with 95% bootstrap confidence intervals.
 """
 
 from __future__ import annotations
@@ -51,16 +42,8 @@ _COMP_TRANS = str.maketrans("ACGTU", "TGCAA")
 CALIBRATION_METADATA = {
     "dataset": "ASO Atlas (barneyhill/aso_atlas) + Ensembl GRCh38 cDNA flanks",
     "model": "v3_accessibility_pos20_mlp_162_128_64_1",
-    "n_train": 133753,
-    "n_train_genes": 327,
-    "n_test_neuro_gapmer": 25839,
-    "n_test_neuro_genes": 12,
-    "n_cdna_mapped_total": 79687,
-    "val_spearman_rho": 0.3773,
-    "heldout_neuro_spearman_rho": 0.4112,
-    "heldout_neuro_auroc_70pct": 0.7146,
-    "baseline_neuro_spearman_rho": 0.1652,
-    "baseline_neuro_auroc_70pct": 0.5623,
+    "n_features": 162,
+    "training_script": "scripts/train_aso_mlp.py",
 }
 
 

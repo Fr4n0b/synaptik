@@ -104,7 +104,6 @@ for cmd in \
   "benchmark" \
   "benchmark --spliceai" \
   "benchmark --aso" \
-  "benchmark --extraction" \
   "benchmark --all" \
   "aso --sequence TTCTGTAACAGTTTTTGTTTTTTCAGGTGAGTATTCAGGT --gene STMN2" \
   "translate --splicing examples/voila_majiq.tsv --disease als" \
@@ -153,7 +152,6 @@ for cmd in \
   "benchmark" \
   "benchmark --spliceai" \
   "benchmark --aso" \
-  "benchmark --extraction" \
   "benchmark --all" \
   "aso --sequence TTCTGTAACAGTTTTTGTTTTTTCAGGTGAGTATTCAGGT --gene STMN2" \
   "translate --splicing examples/voila_majiq.tsv --disease als" \

@@ -172,29 +172,26 @@ class EvidenceWeighter:
         )
         return b
 
-    # Empirically calibrated claim-level replication weights learned via
-    # temporal cross-validation (2018-2021 folds, 447 claims) on 1,714 OA
-    # Europe PMC full-text iPSC-neuron papers (2,734 ExperimentRecords;
-    # out-of-sample Cutoff 2022 AUROC = 0.7129 vs 0.3671 enrichment,
-    # 0.4103 p_value, 0.7626 record_count attention baseline).
+    # Uncalibrated rigor-structure prior weights (NOT empirically calibrated;
+    # publication volume `n_records` is deliberately excluded and `null_ratio`
+    # is not penalized pending Phase 3 pre-registered replication analysis).
     CLAIM_FEATURE_WEIGHTS: dict[str, float] = {
-        "n_labs": 0.1476,
-        "n_donor_lines": 0.1539,
-        "n_clones": 0.1645,
-        "assay_diversity": 0.1285,
-        "null_ratio": -0.1022,
-        "n_records": 0.2327,
+        "n_labs": 0.45,
+        "n_donor_lines": 0.25,
+        "n_clones": 0.15,
+        "is_isogenic_pair": 0.30,
+        "assay_diversity": 0.25,
     }
-    CLAIM_INTERCEPT: float = 0.8086
+    CLAIM_INTERCEPT: float = -0.80
 
     def score_claim_features(self, feats: dict[str, float]) -> float:
-        """Score a claim's evidence structure for independent replication."""
+        """Score a claim's evidence structure (rigor prior, excluding raw volume)."""
         import math
 
         z = self.CLAIM_INTERCEPT
         for k, w in self.CLAIM_FEATURE_WEIGHTS.items():
             val = float(feats.get(k, 0.0))
-            if k in ("n_labs", "n_donor_lines", "n_clones", "assay_diversity", "n_records"):
+            if k in ("n_labs", "n_donor_lines", "n_clones", "assay_diversity"):
                 val = math.log1p(max(0.0, val))
             z += w * val
         return 1.0 / (1.0 + math.exp(-max(-20.0, min(20.0, z))))

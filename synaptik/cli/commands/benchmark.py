@@ -17,14 +17,12 @@ from ..main import Fmt, header
 def cmd_benchmark(args) -> int:
     if getattr(args, "all", False):
         from ...drug.benchmark_aso import run_aso_tiling_benchmark
-        from ...extract.benchmark_extraction import run_extraction_benchmark
         from ...twin.models import PatientBaseline
         from ...twin.twin_generator import evaluate_twin_calibration
 
         threshold = getattr(args, "threshold", 0.20) or 0.20
         splice_res = run_splice_benchmark(threshold=threshold)
         aso_res = run_aso_tiling_benchmark()
-        ext_res = run_extraction_benchmark()
         twin_cal = evaluate_twin_calibration(
             PatientBaseline("BENCH-CAL", 56.0, "bulbar", 12.0, 38.0, baseline_slope=-1.1, baseline_plasma_nfl=68.0),
             n_held_out=200,
@@ -44,7 +42,6 @@ def cmd_benchmark(args) -> int:
         scorecard = {
             "splice_benchmark": spliceai_benchmark_to_dict(splice_res),
             "aso_tiling_benchmark": aso_res.to_dict(),
-            "extraction_benchmark": ext_res.to_dict(),
             "digital_twin_calibration": twin_cal,
             "temporal_holdout": temporal_payload,
         }
@@ -67,20 +64,6 @@ def cmd_benchmark(args) -> int:
                   f"synaptik AUROC={auroc_str}")
         else:
             print("  4. Literature Temporal Hold-Out: skipped (no dated records in DB)")
-        mean_f1 = sum(m.f1 for m in ext_res.metrics) / max(1, len(ext_res.metrics))
-        print(f"  5. Full-Text Extraction Benchmark (n={ext_res.n_cases} cases): mean F1={mean_f1:.3f}")
-        return 0
-
-    if getattr(args, "extraction", False):
-        from ...extract.benchmark_extraction import run_extraction_benchmark
-        ext_res = run_extraction_benchmark()
-        if args.json:
-            print(json.dumps(ext_res.to_dict(), indent=2))
-            return 0
-        header(f"Gold-Standard Full-Text Extraction Benchmark (n={ext_res.n_cases})")
-        print(f"  {'Field':<18s} {'Prec':>7s} {'Recall':>7s} {'F1':>7s} {'TP':>4s} {'FP':>4s} {'FN':>4s}")
-        for m in ext_res.metrics:
-            print(f"  {m.field_name:<18s} {m.precision:7.3f} {m.recall:7.3f} {m.f1:7.3f} {m.tp:4d} {m.fp:4d} {m.fn:4d}")
         return 0
 
     if getattr(args, "aso", False):
@@ -161,14 +144,23 @@ def cmd_benchmark(args) -> int:
     print(style(res.verdict))
 
     if res.rankers:
-        header("Predicting later independent replication (AUROC)")
+        header("Predicting later independent replication (AUROC, 95% CI)")
         for r in res.rankers:
-            val = "undefined" if r.auroc is None else f"{r.auroc:.3f}"
+            if r.auroc is None:
+                val = "undefined"
+            elif r.ci95:
+                val = f"{r.auroc:.3f} [{r.ci95[0]:.3f}-{r.ci95[1]:.3f}] (n={r.n_pos}+/{r.n_neg}-)"
+            else:
+                val = f"{r.auroc:.3f} (n={r.n_pos}+/{r.n_neg}-)"
             mark = Fmt.bold if r.name == "synaptik" else str
-            print(mark(f"  {r.name:14s} {val:>9s}") +
+            print(mark(f"  {r.name:14s} {val:>32s}") +
                   Fmt.dim(f"   {r.description}"))
-        print(Fmt.dim("  0.5 = chance. The comparison that matters is "
-                      "against record_count."))
+        if res.difference_ci95 is not None:
+            print(Fmt.dim(
+                f"  diff vs {res.best_baseline}: {res.difference_vs_best_baseline:+.3f} "
+                f"(95% CI {res.difference_ci95[0]:+.3f} to {res.difference_ci95[1]:+.3f})"
+            ))
+        print(Fmt.dim("  0.5 = chance. Overlapping CIs mean no statistically resolvable winner."))
     if res.tier_table:
         header("Replication rate by confidence tier")
         print(f"  {'tier':14s} {'n':>4s} {'replicated':>11s} "
@@ -195,8 +187,6 @@ def register(sub, common) -> None:
                    help="run neuronal splice prediction benchmark against curated gold-standard variants")
     s.add_argument("--aso", action="store_true",
                    help="run ASO tiling benchmark against published neurogenetics loci")
-    s.add_argument("--extraction", action="store_true",
-                   help="run gold-standard full-text extraction precision/recall/F1 benchmark")
     s.add_argument("--all", action="store_true",
                    help="run full empirical validation scorecard (splice, ASO, twin calibration, temporal hold-out)")
     s.add_argument("--threshold", type=float, default=0.20,

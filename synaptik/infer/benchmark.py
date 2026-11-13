@@ -72,6 +72,9 @@ class RankerScore:
     name: str
     auroc: float | None
     description: str = ""
+    ci95: tuple[float, float] | None = None
+    n_pos: int = 0
+    n_neg: int = 0
 
 
 @dataclass
@@ -108,6 +111,28 @@ def auroc(scores_pos: list[float], scores_neg: list[float]) -> float | None:
         return None
     u, _ = stats.mannwhitneyu(scores_pos, scores_neg, alternative="two-sided")
     return float(u) / (len(scores_pos) * len(scores_neg))
+
+
+def bootstrap_auroc_ci(
+    scores_pos: list[float], scores_neg: list[float],
+    n_boot: int = 2000, seed: int = 0,
+) -> tuple[float, float] | None:
+    """95% stratified bootstrap CI for a single AUROC."""
+    import numpy as np
+
+    if not scores_pos or not scores_neg:
+        return None
+    pa = np.asarray(scores_pos, dtype=float)
+    na = np.asarray(scores_neg, dtype=float)
+    rng = np.random.default_rng(seed)
+    vals = []
+    for _ in range(n_boot):
+        sp = pa[rng.integers(0, len(pa), len(pa))]
+        sn = na[rng.integers(0, len(na), len(na))]
+        u, _ = stats.mannwhitneyu(sp, sn, alternative="two-sided")
+        vals.append(float(u) / (len(sp) * len(sn)))
+    lo, hi = np.percentile(vals, [2.5, 97.5])
+    return (round(float(lo), 4), round(float(hi), 4))
 
 
 def bootstrap_auroc_difference(
@@ -405,9 +430,13 @@ class RetrospectiveBenchmark:
         res.underpowered = min(len(pos), len(neg)) < MIN_CLASS_SIZE
 
         def ranker(name, fn, description):
+            sp = [fn(c) for c in pos]
+            sn = [fn(c) for c in neg]
             return RankerScore(
-                name, auroc([fn(c) for c in pos], [fn(c) for c in neg]),
-                description)
+                name, auroc(sp, sn), description,
+                ci95=bootstrap_auroc_ci(sp, sn),
+                n_pos=len(sp), n_neg=len(sn),
+            )
 
         res.rankers = [
             ranker("synaptik", lambda c: c.rank_score,

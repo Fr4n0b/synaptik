@@ -60,18 +60,17 @@ says why.
 
 ---
 
-## Empirical Benchmarks & Calibration
+## Empirical Benchmarks & Reproducibility
 
-Every quantitative model in SYNAPTIK is benchmarked on held-out or cross-validated experimental datasets:
+Training and evaluation scripts live in `scripts/` (`train_splice_mlp.py`, `train_aso_mlp.py`, `train_evidence_weighter.py`) with fixed seeds, dataset SHA256 logging, and 95% bootstrap confidence intervals.
 
-| Module | Dataset & Split | Baseline | Calibrated / Current |
+| Module | Dataset & Protocol | Reproducible Command | Status |
 | :--- | :--- | :--- | :--- |
-| **Gapmer ASO Potency (v3)** (`synaptik aso`) | **ASO Atlas + Ensembl GRCh38 cDNA**: `133,753` non-neuro train (`327` genes) $\rightarrow$ `25,839` held-out neurogenetics gapmers (`12` genes; `79,687` mapped to $\pm 50\text{ nt}$ mRNA flanks) | $\rho = 0.1652$, ROC-AUC $= 0.5623$ | **$\rho = 0.4112$, ROC-AUC $= 0.7146$** (v3 target-accessibility + 20-pos MLP, breaking the 0.70 ceiling; v2 was `0.6929`) |
-| **External ASO Zero-Shot** | `Master_ASO_KD_clean` ($n=19$) & `wetlab_KD` ($n=8$) | — | **$\rho = 0.2698$** (`Master_ASO_KD`), **$\rho = 0.4286$** (`wetlab_KD`) |
-| **Splice Disruption** (`synaptik splice`) | **MFASS**: `29,367` mutant SNVs across `2,247` exons (5-fold exon-grouped CV) | AUROC $= 0.7009$, AUPRC $= 0.1204$ | **AUROC $= 0.7770$, AUPRC $= 0.4961$** (**4.12x** baseline, **7.35x** random) |
-| **TDP-43 Cryptic Exons** | `6` published ALS/FTD loci (`STMN2`, `UNC13A`, `KALRN`, `RANBP1`, `SYT7`, `ATG4B`) | — | **6/6** cryptic splice events detected; **5/6** top-1 ASO overlaps cryptic junction |
-| **Temporal Replication** (`synaptik benchmark`) | `1,714` OA Europe PMC full-text iPSC-neuron papers (2013–2025, `2,734` records, `392` labs); trained on 2018–2021 folds (`447` claims), OOS tested on Cutoff 2022 (`148` claims: `115` pos / `33` neg) | `enrichment` $= 0.3671$, `p_value` $= 0.4103$, `record_count` $= 0.7626$ | **Calibrated `EvidenceWeighter` AUROC $= 0.7129$** (learned positive weights for `n_labs`, `n_donor_lines`, `n_clones`, `assay_diversity`; negative weight for `null_ratio`) |
-| **Full-Text Rigor Extraction** (`synaptik benchmark --extraction`) | `16` curated human-verified iPSC-neuron Methods/Results cases | — | **F1 = `1.000`** for `n_donor_lines`, `n_clones`, `is_isogenic_pair`, `days_in_vitro`, and `NO_CHANGE`; **F1 = `0.933`** (P=`1.000`, R=`0.875`) for `gene` & `direction` |
+| **Splice Disruption** (`synaptik splice`) | **MFASS**: `30,330` mutant SNVs across `2,228` exons (5-fold exon-grouped OOF) | `python scripts/train_splice_mlp.py` | **AUROC $= 0.8575$** (95% CI `0.8476–0.8668`), **AUPRC $= 0.4967$** (random `0.0654`) |
+| **Gapmer ASO Potency (v3)** (`synaptik aso`) | **ASO Atlas + Ensembl GRCh38 cDNA**: `12` held-out neurogenetics genes (`n=25,839`, `3,312` pos) | `python scripts/train_aso_mlp.py` | **ROC-AUC $= 0.7146$** (95% CI `0.7059–0.7229`), **Spearman $\rho = 0.4112$**; external wet-lab (`n=8`) **underpowered / not yet validated** |
+| **TDP-43 Cryptic Exons** | `6` published ALS/FTD loci (`STMN2`, `UNC13A`, `KALRN`, `RANBP1`, `SYT7`, `ATG4B`) | `python -m synaptik.sequence.benchmark_cryptic` | **6/6** cryptic splice events detected; **5/6** top-1 ASO overlaps cryptic junction |
+| **Temporal Literature Replication** (`synaptik benchmark`) | `1,714` OA Europe PMC full-text papers (`2013–2025`, `2,734` records); Cutoff `2022` (`n=148`: `115` pos / `33` neg) | `python scripts/train_evidence_weighter.py` | **Underpowered / overlapping CIs** (`rigor_only` `0.6899` [`0.5807–0.7871`] vs. `record_count` `0.7626` [`0.6808–0.8376`]; diff CI `-0.1603` to `+0.0155`); descriptive rigor prior only |
+| **Full-Text Rigor Extraction** | Synthetic smoke suite (`tests/test_extraction_smoke.py`, `14` cases) | `python -m tests.test_extraction_smoke` | **Real-paper precision/recall not yet validated** (requires Phase 1 independent human annotation) |
 
 ---
 
@@ -383,13 +382,14 @@ on output:
   cryptic exons and splice-disrupting mutations (*STMN2*, *UNC13A*, *SMN2*, *ELP1*,
   *COL6A1*) and matched neutral controls (Sensitivity: 100%, Specificity: 100%, ROC-AUC: 1.000).
 
-- **Temporal literature replication is validated on 1,714 OA full-text papers.** Using `canonical_pathways_for_phenotype` and `(gene, phenotype)` tracking, `EvidenceWeighter` trained on 2018–2021 temporal CV folds (`447` claims) achieves out-of-sample Cutoff 2022 `AUROC = 0.7129` (vs. `0.3671` enrichment, `0.4103` p-value, and `0.7626` raw `record_count` attention baseline).
-- **Gapmer ASO potency v3 incorporates target mRNA accessibility.** Mapped `79,687` ASO Atlas gapmers onto Ensembl GRCh38 cDNA $\pm 50\text{ nt}$ flanks and trained a 162-feature target-accessibility + 20-position MLP (`ROC-AUC = 0.7146`, Spearman $\rho = 0.4112$ on `25,839` held-out neurogenetics gapmers; intronic pre-mRNA targets without cDNA flanks fall back to neutral accessibility priors, and delivery/conjugation effects remain out of scope).
+- **Temporal literature replication is not yet statistically resolvable.** On `1,714` OA Europe PMC full-text papers (`2,734` records), Cutoff 2022 has `148` claims (`115` pos / `33` neg), where `rigor_only` scores `0.6899` (`95% CI 0.5807–0.7871`) vs. `record_count` `0.7626` (`95% CI 0.6808–0.8376`), with difference CI `-0.1603` to `+0.0155` (overlapping zero). Until Phase 1–3 ($N \ge 800$ claims, $\ge 200$ negatives), `EvidenceWeighter` uses an uncalibrated rigor prior excluding `n_records` and without penalizing `null_ratio`.
+- **Full-text extraction recall on real papers is not yet validated.** `tests/test_extraction_smoke.py` verifies parser behavior on `14` synthetic sentences; real-paper precision/recall/F1 requires Phase 1 two-annotator human curation.
+- **Gapmer ASO potency v3 is not yet validated on independent wet-lab cohorts.** Reproducible training on ASO Atlas + Ensembl GRCh38 cDNA flanks is in `scripts/train_aso_mlp.py`; external wet-lab validation (`n=8`) is underpowered and delivery/conjugation effects remain out of scope.
 - **Sample-size estimates depend on a variability figure papers rarely
   report.** Design briefs show a range of assumed CVs; supply your own with
   `--cv` for a real estimate, and use `--rho` for paired isogenic designs.
 
-The test suite (20 suites in `tests/`, verified in CI on Python 3.10, 3.11, and 3.12) encodes the properties that make output trustworthy. If it fails, the output should not be used.
+The test suite (21 suites in `tests/`, verified in CI on Python 3.10, 3.11, and 3.12) encodes the properties that make output trustworthy. If it fails, the output should not be used.
 
 ---
 
@@ -423,7 +423,7 @@ The test suite (20 suites in `tests/`, verified in CI on Python 3.10, 3.11, and 
 - [x] In silico ASO engineering pipeline (thermodynamics, liability screening, neural off-targets)
 - [x] Translational fluid biomarker pharmacodynamics & patient stratification (plasma NfL kinetics)
 - [x] Preclinical study design registry & multi-site meta-analysis (Nature reproducibility standards)
-- [x] Run and publish the benchmark on a full real-literature corpus (`1,714` OA papers, `2,734` records, OOS AUROC `0.7129`)
+- [ ] Run and publish a powered ($N \ge 800$ claims) temporal replication benchmark on a human-annotated real-literature corpus
 - [ ] Extension beyond neurons to other iPSC-derived systems
 
 ---
