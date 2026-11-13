@@ -1755,7 +1755,7 @@ class TestTier1FeatureCoverage(unittest.TestCase):
                     if isinstance(node, ast.JoinedStr):
                         for val in node.values:
                             if isinstance(val, ast.FormattedValue):
-                                seg = ast.get_source_segment(txt, val)
+                                seg = ast.get_source_segment(txt, val.value)
                                 if seg and "\\" in seg:
                                     self.fail(f"Disallowed backslash in f-string expression in {p}: {seg}")
 
