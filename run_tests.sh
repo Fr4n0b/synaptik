@@ -118,6 +118,7 @@ for cmd in \
   "cite --apa" \
   "vcf examples/patient_stmn2_wgs.vcf" \
   "repurpose --target STMN2 --direction activator" \
+  "audit --gene STMN2 --target-seq UUUUCCUUUCCCUUUUUUCCCAGGGCCAUUGUGUGGACUCAGGCAUGGCGUCCAGGUAAGU --mode splice" \
   "nof1 --gene STMN2 --patient ALS-001" \
   "contracts --self-test"
 do
@@ -163,6 +164,7 @@ for cmd in \
   "cite" \
   "vcf examples/patient_stmn2_wgs.vcf" \
   "repurpose --target STMN2 --direction activator" \
+  "audit --gene STMN2 --target-seq UUUUCCUUUCCCUUUUUUCCCAGGGCCAUUGUGUGGACUCAGGCAUGGCGUCCAGGUAAGU --mode splice" \
   "nof1 --gene STMN2 --patient ALS-001"
 do
   eval "python3 -m synaptik.cli.main $cmd --db '$TMPDB' --json" \

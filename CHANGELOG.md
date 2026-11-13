@@ -17,8 +17,18 @@ All notable changes to SYNAPTIK are recorded here.
 - **Concurrent Rate-Limited Literature Harvesting & Preprint Weighting (`synaptik/ingest/`)**:
   - Thread-safe `PoliteSession` adhering to NCBI/EBI limits, plus bioRxiv/medRxiv preprint harvesting with explicit 20% discount weighting.
 - **REST API Endpoints**: Added `/api/biophysics`, `/api/twin`, `/api/clinical/allometry`, `/api/clinical/pkpd`, `/api/clinical/escalate`, and `/api/clinical/protocol`.
+- **Empirical ASO Potency Calibration (`synaptik/drug/aso_calibrated.py`, `aso_mlp_v2.json`)**:
+  - 96-feature positional, regional thermodynamic (5'-wing, gap, 3'-wing), dinucleotide, and RNase H1 motif MLP trained on 131,566 non-neuro gapmers (327 genes) from ASO Atlas and evaluated on 25,130 held-out neurogenetics gapmers across 12 genes (Spearman $\rho = 0.3763$, ROC-AUC $= 0.6929$, Top-5 $= 0.367$ vs. uncalibrated $\rho = 0.1652$, ROC-AUC $= 0.5623$). External zero-shot validation on `Master_ASO_KD_clean` ($n=19$, $\rho = 0.2698$) and `wetlab_KD` ($n=8$, $\rho = 0.4286$).
+- **MFASS + Neuronal RBP Splice Calibration (`synaptik/sequence/splice.py`, `splice_mlp_v2.json`) & TDP-43 Cryptic Exon Benchmark (`synaptik/sequence/benchmark_cryptic.py`)**:
+  - 18-feature MLP integrating PWM donor/acceptor deltas, RESCUE-ESE/FAS-ESS hexamers, and neuronal RBP motifs (`TDP-43`, `PTBP1`, `RBFOX`, `NOVA`, branchpoint, PPT) validated via 5-fold exon-grouped CV across 29,367 MFASS mutant SNVs (2,247 exons): AUROC $= 0.7770$, AUPRC $= 0.4961$ (4.12x baseline).
+  - 6-locus TDP-43 cryptic exon benchmark (`STMN2`, `UNC13A`, `KALRN`, `RANBP1`, `SYT7`, `ATG4B`): 6/6 cryptic splice events detected, 5/6 top-1 cryptic-junction ASO overlap.
+- **Full-Text JATS XML Rigor Extractor (`synaptik/extract/fulltext.py`) & Turnkey Lab Audit (`synaptik audit`)**:
+  - Extracts `n_donor_lines`, `n_clones`, `is_isogenic_pair`, `days_in_vitro`, `CellModelClass`, `PerturbationType`, and `Direction.NO_CHANGE` null results from Europe PMC JATS XML sections (79.41x record yield vs. abstracts across 227 live OA papers).
+  - Added `synaptik audit --gene <GENE>` for PI-ready Markdown/JSON evidence and ASO dossiers.
 
 ### Fixed & Scientifically Verified
+- **Europe PMC `fullTextXML` HTTP 406 Fix (`synaptik/ingest/http.py`)**: Changed `PoliteSession` default `Accept` header from `application/json` to `*/*`, restoring 100% JATS XML full-text retrieval.
+- **Unbound `cpg_count` for PMO Gapmers (`synaptik/drug/aso.py`)**: Always compute `cpg_count` before chemistry-specific CpG penalty branching.
 - **Sugimoto 1995 Nearest-Neighbor Thermodynamics (`synaptik/drug/aso.py`)**:
   - Verified all 16 RNA/DNA nearest-neighbor entries against Sugimoto et al. (*Biochemistry* 1995) Table 2 and Biopython `R_DNA_NN1`; resolved antiparallel RNA $5'\rightarrow 3'$ vs DNA $5'\rightarrow 3'$ indexing; calibrated 2'-MOE shifts to clinical Nusinersen benchmarks ($\Delta G_{37} = -21.52\text{ kcal/mol}$, $T_m = 65.0^\circ\text{C}$).
 - **Honest Scientific Claims & Safety Guardrails (`synaptik/drug/specificity.py`, `synaptik/nof1/pipeline.py`, `tests/test_safety_claims.py`)**:
