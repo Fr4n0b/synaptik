@@ -420,6 +420,9 @@ class ASOCandidate:
     composite_score: float
     specificity: SpecificityResult = field(default_factory=SpecificityResult)
     penalties_and_warnings: list[str] = field(default_factory=list)
+    delta_g_open_kcal_mol: float | None = None
+    effective_dg_kcal_mol: float | None = None
+    accessibility_tier: str | None = None
 
     @property
     def specificity_screened(self) -> bool:
@@ -482,6 +485,7 @@ class ASODesigner:
         top_k: int = 5,
         transcriptome: str | None = None,
         max_mismatches: int | None = None,
+        use_biophysics: bool = True,
     ) -> ASODesignResult:
         """Tile across the target RNA and rank candidate ASOs.
 
@@ -619,12 +623,44 @@ class ASODesigner:
 
         passed = [c for c in candidates if not c.has_quadruplex_risk and c.off_target_0_mismatch == 0 and c.composite_score >= 60.0]
 
-        # ---- specificity: the safety-critical step ----
-        # Screening is done after ranking so the cost falls only on the
-        # candidates the user will actually look at. Reading a transcriptome
-        # once and reusing it across candidates keeps a full human reference
-        # to a single pass per oligo rather than per window.
-        shortlist = (passed or candidates)[: max(top_k, 1)]
+        # ---- 3D RNA target accessibility & specificity ----
+        # Evaluate on an expanded shortlist so structurally occluded or
+        # off-target hits are properly demoted before slicing top_k.
+        pool_size = max(top_k * 3, 10) if use_biophysics else max(top_k, 1)
+        shortlist = (passed or candidates)[:pool_size]
+
+        if use_biophysics and shortlist:
+            from ..biophysics.folding import compute_target_accessibility
+            flank = 60
+            for cand in shortlist:
+                win_start = max(0, cand.target_start - flank)
+                win_end = min(target_len, cand.target_end + flank)
+                local_rna = clean_target[win_start:win_end]
+                rel_start = cand.target_start - win_start
+                rel_end = cand.target_end - win_start
+                acc = compute_target_accessibility(local_rna, rel_start, rel_end)
+                cand.delta_g_open_kcal_mol = acc.delta_g_open
+                cand.effective_dg_kcal_mol = round(cand.gibbs_free_energy_37c + acc.delta_g_open, 2)
+                cand.accessibility_tier = acc.accessibility_tier.value
+                if acc.delta_g_open > 4.0:
+                    cand.composite_score = round(max(0.0, cand.composite_score - 20.0), 1)
+                    cand.penalties_and_warnings.append(
+                        f"Target RNA is structurally occluded (Delta G_open={acc.delta_g_open:.2f} kcal/mol > 4.0)"
+                    )
+                elif acc.delta_g_open >= 1.5:
+                    cand.composite_score = round(max(0.0, cand.composite_score - 5.0), 1)
+                    cand.penalties_and_warnings.append(
+                        f"Target RNA moderately structured (Delta G_open={acc.delta_g_open:.2f} kcal/mol)"
+                    )
+            shortlist.sort(
+                key=lambda c: (
+                    c.composite_score,
+                    -(c.effective_dg_kcal_mol if c.effective_dg_kcal_mol is not None else c.gibbs_free_energy_37c),
+                ),
+                reverse=True,
+            )
+
+        shortlist = shortlist[: max(top_k, 1)]
         mm = max_mismatches if max_mismatches is not None else \
             DEFAULT_MAX_MISMATCHES.get(mode.value, 3)
         if transcriptome:
@@ -661,9 +697,7 @@ class ASODesigner:
 
         caveats = [
             "Tiling predictions optimize thermodynamic and biophysical parameters; empirical in vitro potency must be confirmed in cells.",
-            "Steric blocking efficacy depends on local RNA secondary structure accessibility (RBD/spliceosome binding).",
-            "Thermodynamics assume an ungapped, fully accessible target. RNA "
-            "structure, RBP occupancy and nuclear context are not modelled.",
+            "Local RNA target accessibility (Delta G_open) is modeled via Zuker MFE over a +/-60 nt flanking window; long-range tertiary contacts and RBP occupancy are not modeled.",
             "CSF half-life is a literature value for the chemistry class, "
             "identical for every sequence; it is not a per-oligo prediction.",
         ]
@@ -682,7 +716,7 @@ class ASODesigner:
             chemistry=chemistry,
             n_windows_evaluated=n_windows,
             n_passed_filters=len(passed),
-            candidates=candidates[:top_k],
+            candidates=shortlist,
             precedent=precedent,
             caveats=caveats,
         )
