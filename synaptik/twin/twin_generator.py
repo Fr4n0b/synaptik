@@ -134,3 +134,34 @@ def generate_counterfactual_cohort(
         conditional_mean_slope=cond.mean_slope,
         conditional_std_slope=cond.std_slope,
     )
+
+
+def evaluate_twin_calibration(
+    baseline: PatientBaseline,
+    n_held_out: int = 200,
+    n_twins: int = 400,
+    duration_months: int = 12,
+    random_seed: int = 123,
+) -> dict[str, Any]:
+    """Verify empirical coverage of the P10-P90 counterfactual interval (nominal 80%)."""
+    cohort = generate_counterfactual_cohort(
+        baseline, n_twins=n_twins, duration_months=duration_months, random_seed=random_seed
+    )
+    held_out = generate_counterfactual_cohort(
+        baseline, n_twins=n_held_out, duration_months=duration_months, random_seed=random_seed + 9999
+    )
+    coverage_by_month: dict[int, float] = {}
+    for m in (3, 6, duration_months):
+        if m <= duration_months:
+            lo = cohort.p10_trajectory[m]
+            hi = cohort.p90_trajectory[m]
+            inside = sum(1 for traj in held_out.trajectories if lo <= traj[m] <= hi)
+            coverage_by_month[m] = round(inside / n_held_out, 3)
+
+    mean_cov = sum(coverage_by_month.values()) / max(len(coverage_by_month), 1)
+    return {
+        "nominal_coverage": 0.80,
+        "mean_empirical_coverage": round(mean_cov, 3),
+        "coverage_by_month": coverage_by_month,
+        "n_held_out": n_held_out,
+    }

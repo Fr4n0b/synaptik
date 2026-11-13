@@ -15,6 +15,73 @@ from ..main import Fmt, header
 
 
 def cmd_benchmark(args) -> int:
+    if getattr(args, "all", False):
+        from ...drug.benchmark_aso import run_aso_tiling_benchmark
+        from ...twin.models import PatientBaseline
+        from ...twin.twin_generator import evaluate_twin_calibration
+
+        threshold = getattr(args, "threshold", 0.20) or 0.20
+        splice_res = run_splice_benchmark(threshold=threshold)
+        aso_res = run_aso_tiling_benchmark()
+        twin_cal = evaluate_twin_calibration(
+            PatientBaseline("BENCH-CAL", 56.0, "bulbar", 12.0, 38.0, baseline_slope=-1.1, baseline_plasma_nfl=68.0),
+            n_held_out=200,
+            n_twins=400,
+            duration_months=12,
+            random_seed=42,
+        )
+
+        temporal_payload = None
+        store = Store(args.db)
+        years = [r["year"] for r in store.conn.execute(
+            "SELECT year FROM records WHERE year IS NOT NULL ORDER BY year")]
+        if years:
+            cutoff = args.cutoff if args.cutoff is not None else years[int(len(years) * 0.7)]
+            temporal_payload = benchmark_to_dict(run_benchmark(store, cutoff))
+
+        scorecard = {
+            "splice_benchmark": spliceai_benchmark_to_dict(splice_res),
+            "aso_tiling_benchmark": aso_res.to_dict(),
+            "digital_twin_calibration": twin_cal,
+            "temporal_holdout": temporal_payload,
+        }
+        if args.json:
+            print(json.dumps(scorecard, indent=2, default=str))
+            return 0
+
+        header("SYNAPTIK Empirical Validation Scorecard")
+        print(f"  1. Splice Benchmark (n={splice_res.n_cases}): "
+              f"Sens={splice_res.sensitivity:.1%}, Spec={splice_res.specificity:.1%}, ROC-AUC={splice_res.auroc:.3f}")
+        print(f"  2. ASO Tiling Benchmark (n={aso_res.n_loci} loci): "
+              f"Hit@5(bio)={aso_res.hit_rate_at_5_biophysics:.1%}, MRR(bio)={aso_res.mrr_biophysics:.3f} "
+              f"vs seq-only Hit@5={aso_res.hit_rate_at_5_sequence_only:.1%}, MRR={aso_res.mrr_sequence_only:.3f}")
+        print(f"  3. Digital Twin Calibration (n=200 held-out): "
+              f"P10-P90 empirical coverage={twin_cal['mean_empirical_coverage']:.1%} (nominal 80.0%)")
+        if temporal_payload:
+            syn_ranker = next((r for r in temporal_payload.get("rankers", []) if r["name"] == "synaptik"), None)
+            auroc_str = f"{syn_ranker['auroc']:.3f}" if syn_ranker and syn_ranker.get("auroc") is not None else "undefined"
+            print(f"  4. Literature Temporal Hold-Out (cutoff={temporal_payload['cutoff_year']}): "
+                  f"synaptik AUROC={auroc_str}")
+        else:
+            print("  4. Literature Temporal Hold-Out: skipped (no dated records in DB)")
+        return 0
+
+    if getattr(args, "aso", False):
+        from ...drug.benchmark_aso import run_aso_tiling_benchmark
+        aso_res = run_aso_tiling_benchmark()
+        if args.json:
+            print(json.dumps(aso_res.to_dict(), indent=2))
+            return 0
+        header("Published ASO Tiling Benchmark (4 Neurogenetics Loci)")
+        print(f"  Biophysics-coupled : Hit@5={aso_res.hit_rate_at_5_biophysics:.1%}, MRR={aso_res.mrr_biophysics:.3f}")
+        print(f"  Sequence-only      : Hit@5={aso_res.hit_rate_at_5_sequence_only:.1%}, MRR={aso_res.mrr_sequence_only:.3f}")
+        print()
+        for o in aso_res.outcomes:
+            print(f"  {o.gene:<8s} rank(bio)={str(o.best_rank_with_biophysics):<5s} "
+                  f"rank(seq)={str(o.best_rank_sequence_only):<5s} "
+                  f"top_score={o.top_candidate_score:<5.1f} dG_open={o.top_delta_g_open}")
+        return 0
+
     if getattr(args, "spliceai", False):
         threshold = getattr(args, "threshold", 0.20) or 0.20
         res = run_splice_benchmark(threshold=threshold)
@@ -109,6 +176,10 @@ def register(sub, common) -> None:
                         "below which ~70%% of records fall)")
     s.add_argument("--spliceai", action="store_true",
                    help="run neuronal splice prediction benchmark against curated gold-standard variants")
+    s.add_argument("--aso", action="store_true",
+                   help="run ASO tiling benchmark against published neurogenetics loci")
+    s.add_argument("--all", action="store_true",
+                   help="run full empirical validation scorecard (splice, ASO, twin calibration, temporal hold-out)")
     s.add_argument("--threshold", type=float, default=0.20,
                    help="splice prediction score cutoff (default: 0.20)")
     s.add_argument("--json", action="store_true")

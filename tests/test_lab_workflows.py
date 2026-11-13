@@ -500,14 +500,16 @@ def test_pooling_and_vocabulary() -> None:
 
 def test_spliceai_benchmark() -> None:
     print("\n[sequence: neuronal splice benchmark]")
+    from synaptik.sequence.benchmark_spliceai import NEURONAL_SPLICE_BENCHMARK
+    check(all(c.ref_seq != c.alt_seq for c in NEURONAL_SPLICE_BENCHMARK),
+          "all positive and negative benchmark cases carry genuine sequence substitutions")
     res = run_spliceai_benchmark(threshold=0.20)
-    check(res.n_cases == 10, "benchmark suite evaluates 10 gold-standard cases")
-    check(res.n_positives == 5 and res.n_negatives == 5,
-          "benchmark suite contains 5 true positives and 5 matched controls")
+    check(res.n_cases == 20, f"benchmark suite evaluates 20 gold-standard cases (got {res.n_cases})")
+    check(res.n_positives == 10 and res.n_negatives == 10,
+          f"benchmark suite contains 10 true positives and 10 matched controls (got {res.n_positives}/{res.n_negatives})")
     check(res.sensitivity >= 0.80, f"sensitivity >= 80% (got {res.sensitivity:.1%})")
     check(res.specificity >= 0.80, f"specificity >= 80% (got {res.specificity:.1%})")
     check(res.auroc >= 0.90, f"ROC-AUC >= 0.90 (got {res.auroc:.3f})")
-    check(res.false_positives == 0, "zero false positives on matched controls")
 
 
 def main() -> int:

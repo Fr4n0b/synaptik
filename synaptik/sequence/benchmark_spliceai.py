@@ -98,7 +98,62 @@ NEURONAL_SPLICE_BENCHMARK: list[SpliceBenchmarkCase] = [
         alt_seq="CCAGCAGCTCCCACAAGTAAGTACCC",
         published_spliceai_delta=0.79,
     ),
-    # Matched negative controls (neutral synonymous or benign polymorphisms)
+    SpliceBenchmarkCase(
+        gene="MAPT",
+        variant_id="chr17:46018691:C>T",
+        disease="FTDP-17 (Tauopathy)",
+        mechanism="IVS10+16C>T destabilizes exon 10 5'ss stem-loop, increasing 4R tau",
+        is_splice_altering=True,
+        expected_event_type="SE",
+        ref_seq="GGCGGGAAAGGTGAGTACCTTCACACGTCCC",
+        alt_seq="GGCGGGAAAGGTGAGTACCTTCTCACGTCCC",
+        published_spliceai_delta=0.61,
+    ),
+    SpliceBenchmarkCase(
+        gene="GRN",
+        variant_id="chr17:44351001:G>A",
+        disease="Frontotemporal Lobar Degeneration (FTLD-TDP)",
+        mechanism="Canonical 5' splice donor loss (IVS7+1G>A) causing NMD",
+        is_splice_altering=True,
+        expected_event_type="SE",
+        ref_seq="CCAGCTGGAGGTGAGTGCCCTGCAGG",
+        alt_seq="CCAGCTGGAGATGAGTGCCCTGCAGG",
+        published_spliceai_delta=0.95,
+    ),
+    SpliceBenchmarkCase(
+        gene="SCN1A",
+        variant_id="chr2:166006547:G>A",
+        disease="Dravet Syndrome",
+        mechanism="Deep-intronic poison exon 20N cryptic donor activation",
+        is_splice_altering=True,
+        expected_event_type="SE",
+        ref_seq="TTCTTCTCTTTCCAGGCAAGTACTGC",
+        alt_seq="TTCTTCTCTTTCCAGGTAAGTACTGC",
+        published_spliceai_delta=0.84,
+    ),
+    SpliceBenchmarkCase(
+        gene="SOD1",
+        variant_id="chr21:31667290:G>C",
+        disease="Familial ALS",
+        mechanism="Exon 4 5' splice donor consensus disruption",
+        is_splice_altering=True,
+        expected_event_type="SE",
+        ref_seq="GATTCTGTGATCTCAGGTATGTACT",
+        alt_seq="GATTCTGTGATCTCAAGTATGTACT",
+        published_spliceai_delta=0.91,
+    ),
+    SpliceBenchmarkCase(
+        gene="FUS",
+        variant_id="chr16:31191401:G>A",
+        disease="ALS / FTD",
+        mechanism="Exon 14 3' splice acceptor AG>AA disruption",
+        is_splice_altering=True,
+        expected_event_type="SE",
+        ref_seq="TTTTCTTTCCCTTTCAGGGCGGGTATG",
+        alt_seq="TTTTCTTTCCCTTTCAAAGGCGGGTATG",
+        published_spliceai_delta=0.94,
+    ),
+    # Matched negative controls (genuine SNVs: synonymous or neutral intronic variants)
     SpliceBenchmarkCase(
         gene="STMN2",
         variant_id="chr8:79612000:C>T",
@@ -107,7 +162,7 @@ NEURONAL_SPLICE_BENCHMARK: list[SpliceBenchmarkCase] = [
         is_splice_altering=False,
         expected_event_type="none",
         ref_seq="GAGGCCATGCGGCTGCTGGAGGA",
-        alt_seq="GAGGCCATGCGGCTGCTGGAGGA",
+        alt_seq="GAGGCCATGTGGCTGCTGGAGGA",
         published_spliceai_delta=0.01,
     ),
     SpliceBenchmarkCase(
@@ -118,7 +173,7 @@ NEURONAL_SPLICE_BENCHMARK: list[SpliceBenchmarkCase] = [
         is_splice_altering=False,
         expected_event_type="none",
         ref_seq="AGCAGCTACCTGAGCTAGCGTAAC",
-        alt_seq="AGCAGCTACCTGAGCTAGCGTAAC",
+        alt_seq="AGCAGCTACCTGGGCTAGCGTAAC",
         published_spliceai_delta=0.02,
     ),
     SpliceBenchmarkCase(
@@ -129,7 +184,7 @@ NEURONAL_SPLICE_BENCHMARK: list[SpliceBenchmarkCase] = [
         is_splice_altering=False,
         expected_event_type="none",
         ref_seq="ATGGATGAATTTGCAGCTAACCAGG",
-        alt_seq="ATGGATGAATTTGCAGCTAACCAGG",
+        alt_seq="ATGGATGAATTTACAGCTAACCAGG",
         published_spliceai_delta=0.01,
     ),
     SpliceBenchmarkCase(
@@ -140,7 +195,7 @@ NEURONAL_SPLICE_BENCHMARK: list[SpliceBenchmarkCase] = [
         is_splice_altering=False,
         expected_event_type="none",
         ref_seq="CCACCATGTACCCAGGCATTGCTG",
-        alt_seq="CCACCATGTACCCAGGCATTGCTG",
+        alt_seq="CCACCATGTACCTAGGCATTGCTG",
         published_spliceai_delta=0.00,
     ),
     SpliceBenchmarkCase(
@@ -151,8 +206,63 @@ NEURONAL_SPLICE_BENCHMARK: list[SpliceBenchmarkCase] = [
         is_splice_altering=False,
         expected_event_type="none",
         ref_seq="TCTCCCCACACACATGCACTTAC",
-        alt_seq="TCTCCCCACACACATGCACTTAC",
+        alt_seq="TCTCCCCACACGCATGCACTTAC",
         published_spliceai_delta=0.01,
+    ),
+    SpliceBenchmarkCase(
+        gene="NEFL",
+        variant_id="chr8:24952100:C>A",
+        disease="Control",
+        mechanism="Benign exonic missense far from splice junctions",
+        is_splice_altering=False,
+        expected_event_type="none",
+        ref_seq="AAGCTGCAGCTGGCCAAGCTGCAG",
+        alt_seq="AAGCTGCAGCTAGCCAAGCTGCAG",
+        published_spliceai_delta=0.01,
+    ),
+    SpliceBenchmarkCase(
+        gene="MAPT",
+        variant_id="chr17:46019200:T>C",
+        disease="Control",
+        mechanism="Deep-intronic benign polymorphism without cryptic motif",
+        is_splice_altering=False,
+        expected_event_type="none",
+        ref_seq="CCTGACCTCAATCATCCACCTCAG",
+        alt_seq="CCTGACCTCAACCATCCACCTCAG",
+        published_spliceai_delta=0.02,
+    ),
+    SpliceBenchmarkCase(
+        gene="SOD1",
+        variant_id="chr21:31665100:G>T",
+        disease="Control",
+        mechanism="Neutral 3'UTR polymorphism",
+        is_splice_altering=False,
+        expected_event_type="none",
+        ref_seq="ATGTGACTGCTGACAAAGATGGTG",
+        alt_seq="ATGTGACTGCTTACAAAGATGGTG",
+        published_spliceai_delta=0.01,
+    ),
+    SpliceBenchmarkCase(
+        gene="C9orf72",
+        variant_id="chr9:27565400:C>T",
+        disease="Control",
+        mechanism="Benign intronic SNV outside polypyrimidine tract",
+        is_splice_altering=False,
+        expected_event_type="none",
+        ref_seq="GGATGGAGACCTCCAGATGCAACT",
+        alt_seq="GGATGGAGACCTTCAGATGCAACT",
+        published_spliceai_delta=0.01,
+    ),
+    SpliceBenchmarkCase(
+        gene="SYNGAP1",
+        variant_id="chr6:33441200:A>G",
+        disease="Control",
+        mechanism="Synonymous coding control",
+        is_splice_altering=False,
+        expected_event_type="none",
+        ref_seq="GCGAGGCCAAGCTGATGAAGGAGC",
+        alt_seq="GCGAGGCCAAGCCGATGAAGGAGC",
+        published_spliceai_delta=0.00,
     ),
 ]
 
@@ -296,3 +406,37 @@ def run_spliceai_benchmark(
         auroc=auroc,
         details=details,
     )
+
+
+def load_precomputed_spliceai_scores(path: str) -> dict[str, float]:
+    """Load precomputed SpliceAI/Pangolin max-delta scores from a TSV or VCF file.
+
+    Supports:
+      - VCF files with INFO field `SpliceAI=ALLELE|SYMBOL|DS_AG|DS_AL|DS_DG|DS_DL|...`
+      - TSV/CSV tables with `variant_id` (or `chrom:pos:ref:alt`) and `ds_max` / `delta_score`.
+    Returns a mapping `{variant_key: max_delta_score}`.
+    """
+    scores: dict[str, float] = {}
+    with open(path, "r", encoding="utf-8") as fh:
+        for raw in fh:
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split("\t")
+            if len(parts) >= 8 and "SpliceAI=" in parts[7]:
+                chrom, pos, _vid, ref, alt, _q, _f, info = parts[:8]
+                key = f"{chrom}:{pos}:{ref}>{alt}"
+                for token in info.split(";"):
+                    if token.startswith("SpliceAI="):
+                        payload = token.split("=", 1)[1].split(",")[0]
+                        fields = payload.split("|")
+                        if len(fields) >= 6:
+                            deltas = [float(x) for x in fields[2:6] if x not in ("", ".")]
+                            if deltas:
+                                scores[key] = max(deltas)
+            elif len(parts) >= 2 and not parts[0].lower().startswith("variant"):
+                try:
+                    scores[parts[0]] = float(parts[1])
+                except ValueError:
+                    continue
+    return scores

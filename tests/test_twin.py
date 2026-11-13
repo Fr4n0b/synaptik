@@ -62,6 +62,11 @@ def test_cohort_simulation_and_bayesian() -> None:
     check("COMPUTATIONAL DRAFT" in dossier, "dossier carries computational draft banner")
     check("Francesco Nobile" in dossier and "0009-0001-9477-3332" in dossier, "dossier cites Francesco Nobile & ORCID")
 
+    from synaptik.twin.twin_generator import evaluate_twin_calibration
+    cal = evaluate_twin_calibration(b, n_held_out=200, n_twins=400, duration_months=12, random_seed=77)
+    check(0.72 <= cal["mean_empirical_coverage"] <= 0.88,
+          f"P10-P90 interval achieves ~80% empirical coverage (got {cal['mean_empirical_coverage']:.3f})")
+
 
 def main() -> int:
     print("=" * 70)

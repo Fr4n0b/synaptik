@@ -160,6 +160,23 @@ def test_real_world_targets() -> None:
     check(lead_sod1.off_target_0_mismatch == 0, "zero 0-mismatch off-targets in neural transcriptome")
 
 
+def test_aso_tiling_benchmark() -> None:
+    print("\n[aso: splice-regulatory context & published tiling benchmark]")
+    from synaptik.drug.aso import score_splice_regulatory_context
+    from synaptik.drug.benchmark_aso import run_aso_tiling_benchmark
+
+    bonus, hits = score_splice_regulatory_context("UUUUUUUUCAGGUGAGUAUU")
+    check(bonus >= 4.0, f"detects PPT + splice junction + silencer (bonus={bonus})")
+    check("polypyrimidine tract" in hits and "splice junction consensus" in hits, f"reports motifs: {hits}")
+
+    report = run_aso_tiling_benchmark()
+    check(report.n_loci == 4, f"evaluates 4 published loci (got {report.n_loci})")
+    by_gene = {o.gene: o for o in report.outcomes}
+    check(by_gene["SMN2"].best_rank_with_biophysics == 1, f"SMN2 ISS-N1 ranked #1 (got {by_gene['SMN2'].best_rank_with_biophysics})")
+    check(by_gene["STMN2"].best_rank_with_biophysics == 1, f"STMN2 cryptic exon 2a ranked #1 (got {by_gene['STMN2'].best_rank_with_biophysics})")
+    check(report.mrr_biophysics >= 0.5, f"biophysics MRR >= 0.50 (got {report.mrr_biophysics})")
+
+
 def main() -> int:
     print("=" * 70)
     print("SYNAPTIK antisense oligonucleotide (ASO) engineering test suite")
@@ -170,6 +187,7 @@ def main() -> int:
     test_off_target_screening()
     test_vendor_and_architectures()
     test_real_world_targets()
+    test_aso_tiling_benchmark()
     print("\n" + "=" * 70)
     if FAILURES:
         print(f"{len(FAILURES)} FAILURE(S):")

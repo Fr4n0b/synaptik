@@ -60,6 +60,30 @@ echo "=== safety-claim suite (no unearned confidence in ASO/clinical output) ===
 python3 -m tests.test_safety_claims
 
 echo
+echo "=== clinical pharmacology, allometry, PK/PD & escalation suite ==="
+python3 -m tests.test_clinical
+
+echo
+echo "=== 3D RNA biophysics, folding & steric competition suite ==="
+python3 -m tests.test_biophysics
+
+echo
+echo "=== patient digital twin & Bayesian natural history suite ==="
+python3 -m tests.test_twin
+
+echo
+echo "=== async literature/omics ingest & rate-limiter suite ==="
+python3 -m tests.test_ingest
+
+echo
+echo "=== adversarial ingest & schema-drift suite ==="
+python3 -m tests.test_adversarial_m1_2
+
+echo
+echo "=== end-to-end requirements acceptance suite ==="
+python3 -m tests.test_e2e_requirements
+
+echo
 echo "=== API contract self-test (offline) ==="
 python3 -m synaptik.ingest.contracts
 
@@ -79,6 +103,8 @@ for cmd in \
   "deposit phenotypes examples/phenotypes.csv" \
   "benchmark" \
   "benchmark --spliceai" \
+  "benchmark --aso" \
+  "benchmark --all" \
   "aso --sequence TTCTGTAACAGTTTTTGTTTTTTCAGGTGAGTATTCAGGT --gene STMN2" \
   "translate --splicing examples/voila_majiq.tsv --disease als" \
   "translate --genes STMN2 UNC13A TARDBP --disease als" \
@@ -111,6 +137,8 @@ for cmd in \
   "deposit phenotypes examples/phenotypes.csv" \
   "benchmark" \
   "benchmark --spliceai" \
+  "benchmark --aso" \
+  "benchmark --all" \
   "aso --sequence TTCTGTAACAGTTTTTGTTTTTTCAGGTGAGTATTCAGGT --gene STMN2" \
   "translate --splicing examples/voila_majiq.tsv --disease als" \
   "translate --genes STMN2 UNC13A TARDBP --disease als" \

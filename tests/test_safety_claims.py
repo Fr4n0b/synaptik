@@ -304,6 +304,24 @@ def test_specificity_screened_property_and_gapmer_thermo() -> None:
     check(tm_gap < tm_moe, f"5-10-5 gapmer Tm ({tm_gap}C) < uniform 2'-MOE Tm ({tm_moe}C)")
     check(dg_gap > dg_moe, f"5-10-5 gapmer dG37 ({dg_gap}) less negative than uniform 2'-MOE ({dg_moe})")
 
+    from synaptik.drug.specificity import SpecificityScreener
+    refs = [
+        ("TX1", "AAAAATTTTTTCACTTTCATAATGCTGGGGGGGG"),
+        ("TX2", "CCCCCCCCAGCTGTAGAAATGTATCCTGGGGGGG"),
+    ]
+    oligos = ["CCAGCATTATGAAAGTGA", "CAGGATACATTTCTACAGCT"]
+    sc = SpecificityScreener(max_mismatches=2)
+    batch = sc.screen_batch(oligos, refs)
+    singles = [sc.screen_oligo(o, refs) for o in oligos]
+    check(
+        all(
+            [(h.transcript_id, h.position, h.strand, h.n_mismatches) for h in b.hits]
+            == [(h.transcript_id, h.position, h.strand, h.n_mismatches) for h in s.hits]
+            for b, s in zip(batch, singles)
+        ),
+        "screen_batch matches single-oligo screen_oligo exactly",
+    )
+
 
 def main() -> int:
     print("=" * 70)

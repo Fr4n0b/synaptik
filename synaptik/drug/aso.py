@@ -290,6 +290,34 @@ def count_cpg_motifs(oligo: str) -> tuple[int, list[int]]:
     return len(positions), positions
 
 
+def score_splice_regulatory_context(target_rna: str) -> tuple[float, list[str]]:
+    """Score canonical splicing-regulatory elements in a target RNA window.
+
+    For steric-blocking splice-switching ASOs, occluding a splice junction,
+    polypyrimidine tract, branchpoint, or intronic/exonic splicing silencer
+    (hnRNP A1/A2, PTB) is strongly associated with functional exon modulation.
+    Returns (bonus_points in [0, 6], matched_motif_descriptions).
+    """
+    rna = (target_rna or "").upper().replace("T", "U")
+    bonus = 0.0
+    hits: list[str] = []
+
+    if re.search(r"[CU]{6,}", rna):
+        bonus += 2.0
+        hits.append("polypyrimidine tract")
+    if re.search(r"[CU]AG[GA]", rna) or re.search(r"GU[AG]AGU|AGGUA", rna):
+        bonus += 2.5
+        hits.append("splice junction consensus")
+    if re.search(r"UAGG|UAGGG|UCUU|CUCUCU|UUAAAG", rna):
+        bonus += 2.0
+        hits.append("hnRNP/PTB splicing silencer")
+    if re.search(r"[CU]U[AG]AC", rna):
+        bonus += 1.5
+        hits.append("branchpoint consensus")
+
+    return min(6.0, bonus), hits
+
+
 def screen_off_targets(
     oligo: str, target_gene: str = ""
 ) -> tuple[int, int, int]:
@@ -582,6 +610,18 @@ class ASODesigner:
                     score -= 25.0
                     penalties.append(f"Single 1-mismatch off-target match in core neural transcriptome ({off_1} hits)")
 
+                # 8. Unmethylated CpG innate-immune (TLR9) motif penalty for PS backbones
+                if chemistry != ASOChemistry.PMO:
+                    cpg_count, _ = count_cpg_motifs(oligo)
+                    if cpg_count > 0:
+                        score -= min(12.0, 4.0 * cpg_count)
+                        penalties.append(f"Contains {cpg_count} CpG motif(s) (TLR9 innate immune risk in PS backbone)")
+
+                # 9. Splicing-regulatory element alignment for splice-switching ASOs
+                if mode == ASOMode.SPLICE_SWITCH:
+                    splice_bonus, _ = score_splice_regulatory_context(sub_target)
+                    score += splice_bonus
+
                 final_score = max(0.0, min(100.0, score))
                 mw = calculate_molecular_weight(oligo, chemistry)
                 vendor_fmt = format_vendor_spec(oligo, mode, chemistry)
@@ -640,13 +680,20 @@ class ASODesigner:
                 rel_end = cand.target_end - win_start
                 acc = compute_target_accessibility(local_rna, rel_start, rel_end)
                 cand.delta_g_open_kcal_mol = acc.delta_g_open
-                cand.effective_dg_kcal_mol = round(cand.gibbs_free_energy_37c + acc.delta_g_open, 2)
+                eff_dg = round(cand.gibbs_free_energy_37c + acc.delta_g_open, 2)
+                cand.effective_dg_kcal_mol = eff_dg
                 cand.accessibility_tier = acc.accessibility_tier.value
                 if acc.delta_g_open > 4.0:
-                    cand.composite_score = round(max(0.0, cand.composite_score - 20.0), 1)
-                    cand.penalties_and_warnings.append(
-                        f"Target RNA is structurally occluded (Delta G_open={acc.delta_g_open:.2f} kcal/mol > 4.0)"
-                    )
+                    if eff_dg > -15.0:
+                        cand.composite_score = round(max(0.0, cand.composite_score - 20.0), 1)
+                        cand.penalties_and_warnings.append(
+                            f"Target RNA is structurally occluded (Delta G_open={acc.delta_g_open:.2f} kcal/mol > 4.0; dG_eff={eff_dg:.1f})"
+                        )
+                    else:
+                        cand.composite_score = round(max(0.0, cand.composite_score - 6.0), 1)
+                        cand.penalties_and_warnings.append(
+                            f"Target RNA structured (Delta G_open={acc.delta_g_open:.2f} kcal/mol > 4.0) but thermodynamically invadable (dG_eff={eff_dg:.1f})"
+                        )
                 elif acc.delta_g_open >= 1.5:
                     cand.composite_score = round(max(0.0, cand.composite_score - 5.0), 1)
                     cand.penalties_and_warnings.append(
@@ -666,9 +713,10 @@ class ASODesigner:
         if transcriptome:
             screener = SpecificityScreener(
                 max_mismatches=mm, skip_on_target_gene=target_gene)
-            for cand in shortlist:
-                cand.specificity = screener.screen_against_fasta(
-                    cand.oligo_sequence_5_to_3, transcriptome)
+            batch_results = screener.screen_batch_against_fasta(
+                [c.oligo_sequence_5_to_3 for c in shortlist], transcriptome)
+            for cand, spec_res in zip(shortlist, batch_results):
+                cand.specificity = spec_res
                 hits = cand.specificity.hits
                 if hits:
                     worst = min(h.n_mismatches for h in hits)

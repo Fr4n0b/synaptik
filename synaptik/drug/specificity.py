@@ -378,6 +378,152 @@ class SpecificityScreener:
             oligo, iter_fasta(path), reference_name=path.name,
             status=ScreenStatus.TRANSCRIPTOME)
 
+    def screen_batch(
+        self,
+        oligos: list[str],
+        references: Iterable[tuple[str, str]],
+        reference_name: str = "supplied",
+        status: ScreenStatus = ScreenStatus.TRANSCRIPTOME,
+    ) -> list[SpecificityResult]:
+        """Screen multiple oligos in a single streaming pass over `references`.
+
+        Identical in sensitivity to calling `screen_oligo()` on each oligo
+        individually, while avoiding repeated FASTA decompression and scanning.
+        """
+        if not oligos:
+            return []
+        if len(oligos) == 1:
+            return [self.screen_oligo(oligos[0], references, reference_name=reference_name, status=status)]
+
+        results: list[SpecificityResult] = []
+        probes_list: list[dict[str, str]] = []
+        lengths: list[int] = []
+        seed_index: dict[str, list[tuple[int, str, int, int]]] = defaultdict(list)
+        unseeded_indices: list[int] = []
+
+        for idx, raw_oligo in enumerate(oligos):
+            oligo_dna = raw_oligo.upper().replace("U", "T")
+            res = SpecificityResult(
+                status=status if oligo_dna else ScreenStatus.NOT_SCREENED,
+                oligo=oligo_dna,
+                reference_name=reference_name,
+                max_mismatches_searched=self.max_mismatches,
+                on_target_gene=self.skip_gene,
+            )
+            if not oligo_dna:
+                res.notes.append("Empty oligo; nothing screened.")
+                results.append(res)
+                probes_list.append({})
+                lengths.append(0)
+                continue
+
+            L = len(oligo_dna)
+            probe_fwd = reverse_complement(oligo_dna)
+            probe_rev = oligo_dna
+            probes = {"+": probe_fwd, "-": probe_rev}
+            probes_list.append(probes)
+            lengths.append(L)
+            results.append(res)
+
+            had_seed = False
+            for strand, probe in probes.items():
+                seeds = self._seeds(probe, self.max_mismatches)
+                if seeds:
+                    had_seed = True
+                    for offset, seed in seeds:
+                        seed_index[seed].append((idx, strand, offset, L))
+            if not had_seed:
+                res.notes.append(
+                    f"Oligo of length {L} is too short to seed at "
+                    f"{self.max_mismatches} mismatches; using full comparison."
+                )
+                unseeded_indices.append(idx)
+
+        seed_lengths = sorted({len(s) for s in seed_index})
+        active_indices = [i for i, L in enumerate(lengths) if L > 0]
+
+        for tx_id, seq in references:
+            if self.skip_gene and tx_id.upper().startswith(self.skip_gene):
+                continue
+            seq = seq.upper().replace("U", "T")
+            tx_len = len(seq)
+
+            for idx in active_indices:
+                res = results[idx]
+                if res.truncated or tx_len < lengths[idx]:
+                    continue
+                res.n_transcripts_searched += 1
+                res.n_bases_searched += tx_len
+
+            if seed_index:
+                seen_per_idx: dict[int, set[tuple[str, int]]] = defaultdict(set)
+                for slen in seed_lengths:
+                    if tx_len < slen:
+                        continue
+                    for i in range(tx_len - slen + 1):
+                        entries = seed_index.get(seq[i : i + slen])
+                        if not entries:
+                            continue
+                        for idx, strand, offset, L in entries:
+                            res = results[idx]
+                            if res.truncated:
+                                continue
+                            start = i - offset
+                            if start < 0 or start + L > tx_len:
+                                continue
+                            key = (strand, start)
+                            if key in seen_per_idx[idx]:
+                                continue
+                            seen_per_idx[idx].add(key)
+                            window = seq[start : start + L]
+                            mm = _count_mismatches(
+                                probes_list[idx][strand], window, self.max_mismatches
+                            )
+                            if mm is not None:
+                                res.hits.append(OffTargetHit(
+                                    transcript_id=tx_id, position=start,
+                                    strand=strand, n_mismatches=mm,
+                                    aligned_sequence=window))
+                                if len(res.hits) > self.max_hits:
+                                    res.truncated = True
+                                    res.notes.append(
+                                        f"Stopped after {self.max_hits} hits: this oligo is "
+                                        "clearly non-specific."
+                                    )
+
+            for idx in unseeded_indices:
+                res = results[idx]
+                L = lengths[idx]
+                if res.truncated or tx_len < L:
+                    continue
+                for strand, probe in probes_list[idx].items():
+                    for i in range(tx_len - L + 1):
+                        mm = _count_mismatches(probe, seq[i : i + L], self.max_mismatches)
+                        if mm is not None:
+                            res.hits.append(OffTargetHit(
+                                transcript_id=tx_id, position=i, strand=strand,
+                                n_mismatches=mm, aligned_sequence=seq[i : i + L]))
+                            if len(res.hits) > self.max_hits:
+                                res.truncated = True
+                                break
+
+            if all(r.truncated for r in results if r.status != ScreenStatus.NOT_SCREENED):
+                break
+
+        for res in results:
+            res.hits.sort(key=lambda h: h.n_mismatches)
+        return results
+
+    def screen_batch_against_fasta(
+        self, oligos: list[str], fasta_path: str | Path
+    ) -> list[SpecificityResult]:
+        path = Path(fasta_path)
+        if not path.exists():
+            return [unscreened(o, f"Reference not found: {path}") for o in oligos]
+        return self.screen_batch(
+            oligos, iter_fasta(path), reference_name=path.name,
+            status=ScreenStatus.TRANSCRIPTOME)
+
 
 def _count_mismatches(a: str, b: str, limit: int) -> int | None:
     """Hamming distance, abandoning early once `limit` is exceeded."""
