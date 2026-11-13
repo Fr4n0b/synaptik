@@ -547,6 +547,12 @@ def test_splice_prediction() -> None:
           "adjacent AG/GT artifact not miscalled as a cryptic exon")
     check(loss.predicted_event_type() == "SE",
           "splice-site loss maps to exon skipping")
+    check(
+        loss.calibrated_disruption_score is not None
+        and neutral.calibrated_disruption_score is not None
+        and loss.calibrated_disruption_score > neutral.calibrated_disruption_score,
+        "MFASS-calibrated disruption score ranks donor loss above neutral variant",
+    )
 
 
 def test_splice_literature_reconciliation() -> None:

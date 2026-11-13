@@ -177,6 +177,28 @@ def test_aso_tiling_benchmark() -> None:
     check(report.mrr_biophysics >= 0.5, f"biophysics MRR >= 0.50 (got {report.mrr_biophysics})")
 
 
+def test_calibrated_empirical_knockdown() -> None:
+    print("\n[aso: ASO-Atlas calibrated empirical knockdown]")
+    from synaptik.drug.aso_calibrated import CALIBRATION_METADATA, predict_empirical_knockdown_pct
+
+    check(CALIBRATION_METADATA["n_train"] == 131706, "records 131,706 non-neuro training pairs")
+    check(CALIBRATION_METADATA["heldout_neuro_auroc_70pct"] > 0.65, "held-out neuro AUROC > 0.65")
+
+    designer = ASODesigner()
+    target = "AUGGCUAGCUAGCUAGCUAGCUGACUGACUGACUGACUGACUGACU"
+    gap_res = designer.design(target, mode=ASOMode.GAPMER, window_sizes=(20,))
+    check(len(gap_res.candidates) > 0, "produces gapmer candidates")
+    kd = gap_res.candidates[0].empirical_knockdown_pct
+    check(kd is not None and 0.0 <= kd <= 100.0, f"gapmer gets bounded empirical_knockdown_pct (got {kd})")
+
+    sso_res = designer.design(target, mode=ASOMode.SPLICE_SWITCH, window_sizes=(18,))
+    check(len(sso_res.candidates) > 0 and sso_res.candidates[0].empirical_knockdown_pct is None,
+          "splice-switching ASO leaves empirical_knockdown_pct=None")
+
+    kd_direct = predict_empirical_knockdown_pct("TCACTTTCAACCACATGGTG", -22.5, 62.0, -1.2, 2.0, 0)
+    check(0.0 <= kd_direct <= 100.0, f"direct predictor bounded (got {kd_direct})")
+
+
 def main() -> int:
     print("=" * 70)
     print("SYNAPTIK antisense oligonucleotide (ASO) engineering test suite")
@@ -188,6 +210,7 @@ def main() -> int:
     test_vendor_and_architectures()
     test_real_world_targets()
     test_aso_tiling_benchmark()
+    test_calibrated_empirical_knockdown()
     print("\n" + "=" * 70)
     if FAILURES:
         print(f"{len(FAILURES)} FAILURE(S):")

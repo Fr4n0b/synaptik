@@ -179,48 +179,61 @@ def harvest_and_extract_europepmc(
     seen_pmids: set[str] = set()
 
     for q in queries:
-        params = urllib.parse.urlencode({
-            "query": q,
-            "format": "json",
-            "resultType": "core",
-            "pageSize": min(per_query, 100),
-        })
-        url = f"https://www.ebi.ac.uk/europepmc/webservices/rest/search?{params}"
-        req = urllib.request.Request(url, headers={"User-Agent": "SYNAPTIK-Research/0.9"})
-        data = json.loads(urllib.request.urlopen(req, timeout=20).read().decode("utf-8"))
-        for item in data.get("resultList", {}).get("result", []):
-            pmid = str(item.get("pmid") or item.get("id") or "")
-            if not pmid or pmid in seen_pmids:
-                continue
-            seen_pmids.add(pmid)
-            abstract = item.get("abstractText") or ""
-            if not abstract:
-                continue
-            year_raw = item.get("pubYear")
-            try:
-                year = int(year_raw) if year_raw else None
-            except ValueError:
-                year = None
-            raw_authors = item.get("authorList", {}).get("author", [])
-            author_names = [a.get("fullName") for a in raw_authors if a.get("fullName")]
-            if not author_names and item.get("authorString"):
-                author_names = [a.strip() for a in item["authorString"].split(",") if a.strip()]
-            senior = author_names[-1] if author_names else None
-            affils = [a.get("affiliation") for a in raw_authors if a.get("affiliation")]
-            src = SourceMetadata(
-                source_id=f"PMID:{pmid}",
-                pmid=pmid,
-                pmcid=item.get("pmcid"),
-                doi=item.get("doi"),
-                title=item.get("title") or "",
-                year=year,
-                journal=(item.get("journalInfo", {}).get("journal", {}) or {}).get("title"),
-                authors=author_names,
-                corresponding_author=senior,
-                affiliations=affils[:5],
-                is_preprint=(item.get("source") == "PPR"),
-            )
-            pending.append((src, abstract))
+        cursor = "*"
+        fetched_for_query = 0
+        while fetched_for_query < per_query:
+            page_size = min(100, per_query - fetched_for_query)
+            params = urllib.parse.urlencode({
+                "query": q,
+                "format": "json",
+                "resultType": "core",
+                "pageSize": page_size,
+                "cursorMark": cursor,
+            })
+            url = f"https://www.ebi.ac.uk/europepmc/webservices/rest/search?{params}"
+            req = urllib.request.Request(url, headers={"User-Agent": "SYNAPTIK-Research/0.9"})
+            data = json.loads(urllib.request.urlopen(req, timeout=20).read().decode("utf-8"))
+            results = data.get("resultList", {}).get("result", [])
+            if not results:
+                break
+            fetched_for_query += len(results)
+            for item in results:
+                pmid = str(item.get("pmid") or item.get("id") or "")
+                if not pmid or pmid in seen_pmids:
+                    continue
+                seen_pmids.add(pmid)
+                abstract = item.get("abstractText") or ""
+                if not abstract:
+                    continue
+                year_raw = item.get("pubYear")
+                try:
+                    year = int(year_raw) if year_raw else None
+                except ValueError:
+                    year = None
+                raw_authors = item.get("authorList", {}).get("author", [])
+                author_names = [a.get("fullName") for a in raw_authors if a.get("fullName")]
+                if not author_names and item.get("authorString"):
+                    author_names = [a.strip() for a in item["authorString"].split(",") if a.strip()]
+                senior = author_names[-1] if author_names else None
+                affils = [a.get("affiliation") for a in raw_authors if a.get("affiliation")]
+                src = SourceMetadata(
+                    source_id=f"PMID:{pmid}",
+                    pmid=pmid,
+                    pmcid=item.get("pmcid"),
+                    doi=item.get("doi"),
+                    title=item.get("title") or "",
+                    year=year,
+                    journal=(item.get("journalInfo", {}).get("journal", {}) or {}).get("title"),
+                    authors=author_names,
+                    corresponding_author=senior,
+                    affiliations=affils[:5],
+                    is_preprint=(item.get("source") == "PPR"),
+                )
+                pending.append((src, abstract))
+            next_cursor = data.get("nextCursorMark")
+            if not next_cursor or next_cursor == cursor:
+                break
+            cursor = next_cursor
 
     lr.fit([src for src, _ in pending])
     all_records: list[ExperimentRecord] = []

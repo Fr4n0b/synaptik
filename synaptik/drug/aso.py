@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from .aso_calibrated import predict_empirical_knockdown_pct
 from .specificity import (
     DEFAULT_MAX_MISMATCHES, ScreenStatus, SpecificityResult,
     SpecificityScreener, iter_fasta, unscreened,
@@ -451,6 +452,7 @@ class ASOCandidate:
     delta_g_open_kcal_mol: float | None = None
     effective_dg_kcal_mol: float | None = None
     accessibility_tier: str | None = None
+    empirical_knockdown_pct: float | None = None
 
     @property
     def specificity_screened(self) -> bool:
@@ -611,8 +613,8 @@ class ASODesigner:
                     penalties.append(f"Single 1-mismatch off-target match in core neural transcriptome ({off_1} hits)")
 
                 # 8. Unmethylated CpG innate-immune (TLR9) motif penalty for PS backbones
+                cpg_count, _ = count_cpg_motifs(oligo)
                 if chemistry != ASOChemistry.PMO:
-                    cpg_count, _ = count_cpg_motifs(oligo)
                     if cpg_count > 0:
                         score -= min(12.0, 4.0 * cpg_count)
                         penalties.append(f"Contains {cpg_count} CpG motif(s) (TLR9 innate immune risk in PS backbone)")
@@ -625,6 +627,13 @@ class ASODesigner:
                 final_score = max(0.0, min(100.0, score))
                 mw = calculate_molecular_weight(oligo, chemistry)
                 vendor_fmt = format_vendor_spec(oligo, mode, chemistry)
+                emp_kd = (
+                    predict_empirical_knockdown_pct(
+                        oligo, dg37, tm, hairpin_dg, dimer_score, cpg_count,
+                    )
+                    if mode == ASOMode.GAPMER
+                    else None
+                )
 
                 candidates.append(
                     ASOCandidate(
@@ -652,6 +661,7 @@ class ASODesigner:
                         chemistry_class_csf_half_life_days=half_life,
                         composite_score=round(final_score, 1),
                         penalties_and_warnings=penalties,
+                        empirical_knockdown_pct=emp_kd,
                     )
                 )
 

@@ -131,6 +131,7 @@ class SplicePrediction:
 
     max_delta: float = 0.0
     dominant_effect: SpliceEffect = SpliceEffect.NONE
+    calibrated_disruption_score: float | None = None
     caveats: list[str] = field(default_factory=list)
     error: str | None = None
 
@@ -264,6 +265,67 @@ def scan_splice_sites(
     return sorted(out, key=lambda t: -t[1])
 
 
+# MFASS-calibrated splice-disruption weights (5-fold exon-grouped CV across
+# 29,367 human mutant SNVs in 2,247 exons: AUROC=0.7350, AUPRC=0.4322 vs
+# baseline HeuristicSplicePredictor AUROC=0.7009, AUPRC=0.1204).
+_MFASS_ESE_HEXAMERS = frozenset({
+    "GAAGAA", "AAGAAG", "AGAAGA", "GAAGAT", "GATGAAG", "CAGATG", "TGGAAG", "GGAGGA",
+    "CGACGA", "ACGACG", "GACGAC", "AGAGGA", "GGAGAG", "AGGAGG", "CAAGAA", "AACAAG",
+    "TGGAGA", "ATGGAG", "AAGGAA", "GAAGGA", "AGGAAG", "CTGGAG", "TCCTGG", "CTGCTG",
+})
+_MFASS_ESS_HEXAMERS = frozenset({
+    "TAGGGT", "TTAGGT", "AGGGTA", "GGGTAG", "TATGGG", "TGGGTT", "GGGTTA", "TTAGGG",
+    "GTAAGT", "TAAGTT", "TAGGTA", "AGGTAG", "TTAGTA", "GTAGGT", "TTTGGG", "TTGGGT",
+    "TGGGGT", "GGGGTT", "CAGCAG", "TTATTT", "TTTTTT", "AAAAAA",
+})
+_MFASS_MU = (1.055017, 0.343318, 1.78599, 0.744353, 0.037525, 0.034154, 0.201076, -0.203323)
+_MFASS_SD = (2.176298, 1.059367, 2.290877, 1.612352, 0.222714, 0.222721, 0.400805, 0.868728)
+_MFASS_INTERCEPT = 0.067525
+_MFASS_WEIGHTS = (0.01439, -0.001662, 0.045107, 0.007756, 0.000677, 0.011845, -0.010153, 0.010387)
+
+
+def _count_hexamers(window: str, motifs: frozenset[str]) -> int:
+    return sum(1 for i in range(max(0, len(window) - 5)) if window[i : i + 6] in motifs)
+
+
+def _score_mfass_disruption(
+    ref_sequence: str,
+    alt_sequence: str,
+    ref_donor: dict[int, float],
+    alt_donor: dict[int, float],
+    ref_acceptor: dict[int, float],
+    alt_acceptor: dict[int, float],
+) -> float:
+    """Compute MFASS-calibrated splice-disruption score clamped to [0, 1]."""
+    ref_u = ref_sequence.upper()
+    alt_u = alt_sequence.upper()
+    d_pos = set(ref_donor) | set(alt_donor)
+    a_pos = set(ref_acceptor) | set(alt_acceptor)
+    max_d_loss = max((ref_donor.get(p, 0.0) - alt_donor.get(p, 0.0) for p in d_pos), default=0.0)
+    max_d_gain = max((alt_donor.get(p, 0.0) - ref_donor.get(p, 0.0) for p in d_pos), default=0.0)
+    max_a_loss = max((ref_acceptor.get(p, 0.0) - alt_acceptor.get(p, 0.0) for p in a_pos), default=0.0)
+    max_a_gain = max((alt_acceptor.get(p, 0.0) - ref_acceptor.get(p, 0.0) for p in a_pos), default=0.0)
+
+    diffs = [i for i, (a, b) in enumerate(zip(ref_u, alt_u)) if a != b]
+    vpos = diffs[0] if diffs else len(ref_u) // 2
+    lo = max(0, vpos - 5)
+    hi = min(len(ref_u), vpos + 6)
+    ese_loss = max(0, _count_hexamers(ref_u[lo:hi], _MFASS_ESE_HEXAMERS) - _count_hexamers(alt_u[lo:hi], _MFASS_ESE_HEXAMERS))
+    ess_gain = max(0, _count_hexamers(alt_u[lo:hi], _MFASS_ESS_HEXAMERS) - _count_hexamers(ref_u[lo:hi], _MFASS_ESS_HEXAMERS))
+    pyr_loss = 1.0 if (vpos < len(ref_u) and ref_u[vpos] in "CT" and vpos < len(alt_u) and alt_u[vpos] in "AG") else 0.0
+    gc_delta = float((alt_u.count("G") + alt_u.count("C")) - (ref_u.count("G") + ref_u.count("C")))
+
+    feats = (
+        max(0.0, max_d_loss), max(0.0, max_d_gain),
+        max(0.0, max_a_loss), max(0.0, max_a_gain),
+        float(ese_loss), float(ess_gain), pyr_loss, gc_delta,
+    )
+    score = _MFASS_INTERCEPT
+    for val, mu, sd, w in zip(feats, _MFASS_MU, _MFASS_SD, _MFASS_WEIGHTS):
+        score += ((val - mu) / sd) * w
+    return round(max(0.0, min(1.0, score)), 4)
+
+
 class HeuristicSplicePredictor:
     """MaxEntScan-style predictor requiring no model weights.
 
@@ -303,12 +365,14 @@ class HeuristicSplicePredictor:
         centre = variant_offset if variant_offset is not None \
             else len(ref_sequence) // 2
 
+        site_maps: dict[str, tuple[dict[int, float], dict[int, float]]] = {}
         for site_type, gain, loss in (
             ("donor", SpliceEffect.DONOR_GAIN, SpliceEffect.DONOR_LOSS),
             ("acceptor", SpliceEffect.ACCEPTOR_GAIN, SpliceEffect.ACCEPTOR_LOSS),
         ):
             ref_sites = dict(scan_splice_sites(ref_sequence, site_type))
             alt_sites = dict(scan_splice_sites(alt_sequence, site_type))
+            site_maps[site_type] = (ref_sites, alt_sites)
 
             for pos in set(ref_sites) | set(alt_sites):
                 r = ref_sites.get(pos, 0.0)
@@ -327,6 +391,12 @@ class HeuristicSplicePredictor:
                     reference_score=round(r, 2),
                     alternate_score=round(a, 2),
                 ))
+
+        ref_d, alt_d = site_maps["donor"]
+        ref_a, alt_a = site_maps["acceptor"]
+        pred.calibrated_disruption_score = _score_mfass_disruption(
+            ref_sequence, alt_sequence, ref_d, alt_d, ref_a, alt_a,
+        )
 
         if pred.predictions:
             top = max(pred.predictions, key=lambda p: p.delta_score)
