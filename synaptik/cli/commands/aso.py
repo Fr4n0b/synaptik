@@ -72,6 +72,8 @@ def cmd_aso(args) -> int:
     print(f"  Target RNA (5'->3')     : {lead.target_sequence_5_to_3} (pos {lead.target_start}-{lead.target_end})")
     print(f"  Duplex Thermodynamics   : Tm = {lead.melting_temp_c} C, dH = {lead.delta_h_kcal_mol} kcal/mol, dS = {lead.delta_s_cal_mol_k} cal/(mol*K), dG_37 = {lead.gibbs_free_energy_37c} kcal/mol")
     print(f"  Biophysical Liabilities : G-quadruplex={lead.has_quadruplex_risk}, Poly-T/U={lead.has_poly_u_risk}, Hairpin dG={lead.hairpin_delta_g} kcal/mol, 3'-Dimer={lead.self_dimer_score}")
+    if lead.delta_g_open_kcal_mol is not None:
+        print(f"  3D Target Accessibility : dG_open={lead.delta_g_open_kcal_mol:.2f} kcal/mol, dG_eff={lead.effective_dg_kcal_mol:.2f} kcal/mol ({lead.accessibility_tier})")
     sp = lead.specificity
     if lead.specificity_screened:
         counts = sp.counts_by_mismatch()

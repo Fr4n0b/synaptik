@@ -107,6 +107,8 @@ ASSAY_PITFALLS: dict[AssayClass, list[str]] = {
 GENERAL_PITFALLS = [
     "Use isogenic controls where the question is about a specific variant; "
     "between-donor variability otherwise exceeds most disease effects.",
+    "Include >= 2-3 independent donor lines or >= 3 independent iPSC clones per genotype; "
+    "two clones from the same parent line often diverge as much as a disease mutation.",
     "Treat each independent differentiation as one replicate. Cells, fields "
     "and wells from the same differentiation are technical replicates.",
 ]

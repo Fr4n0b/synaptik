@@ -85,6 +85,8 @@ RECORD_TEMPLATE = """{
   "coculture": "e.g. 'mouse glia' or null",
   "genetic_background": "cell line ID if stated, else null",
   "is_isogenic_pair": "true/false/null",
+  "n_donor_lines": "integer or null (distinct donor/patient iPSC lines per genotype)",
+  "n_clones": "integer or null (distinct iPSC clones per genotype)",
 
   "perturbation_type": "one of: mutation_patient, mutation_engineered, knockout, knockdown, overexpression, small_molecule, antisense_oligonucleotide, isoform_switch, none, other",
   "perturbation_target": "gene/protein symbol, or null",
@@ -327,6 +329,8 @@ class LLMExtractor:
             coculture=p.get("coculture"),
             genetic_background=p.get("genetic_background"),
             is_isogenic_pair=self._bool(p.get("is_isogenic_pair")),
+            n_donor_lines=self._int(p.get("n_donor_lines")),
+            n_clones=self._int(p.get("n_clones")),
         )
 
         target = p.get("perturbation_target")

@@ -723,6 +723,67 @@ def test_renormalization_identity() -> None:
                 "one (regression: corpus grew 310 -> 371 without it)")
 
 
+def test_ipsc_donor_and_clonal_diversity() -> None:
+    print("\n[iPSC donor-line and clonal diversity]")
+    from synaptik.infer.association import AssociationEngine
+    from synaptik.infer.weighting import EvidenceWeighter
+    from synaptik.schema import (
+        AssayClass, CellModel, CellModelClass, Direction, ExperimentRecord,
+        NormalizedTerm, Outcome, Perturbation, PerturbationType, Provenance,
+        SourceMetadata,
+    )
+
+    def _rec(rid: str, pheno: str, pathway: str, n_donors: int, n_clones: int) -> ExperimentRecord:
+        return ExperimentRecord(
+            record_id=rid,
+            source=SourceMetadata(
+                source_id=f"PMID:{rid}",
+                title="iPSC study",
+                year=2025,
+                journal="Neuron",
+                sjr_quartile="Q1",
+                lab_id="lab_alpha",
+            ),
+            cell_model=CellModel(
+                model_class=CellModelClass.IPSC_NEURON_NGN2,
+                days_in_vitro=28,
+                is_isogenic_pair=True,
+                n_donor_lines=n_donors,
+                n_clones=n_clones,
+            ),
+            perturbation=Perturbation(ptype=PerturbationType.MUTATION_PATIENT),
+            assay_class=AssayClass.IMAGING_SYNAPTIC_PUNCTA,
+            outcome=Outcome(
+                phenotype=NormalizedTerm(raw=pheno, ontology_id=pheno),
+                direction=Direction.DECREASE,
+                n_biological_replicates=4,
+                effect_size=1.1,
+                p_value=0.005,
+            ),
+            pathways=[NormalizedTerm(raw=pathway, ontology_id=pathway)],
+            provenance=Provenance(quote="q", extraction_confidence=0.9),
+        )
+
+    w = EvidenceWeighter()
+    wb_multi = w.weight(_rec("1", "SYN:0001", "GO:1", n_donors=3, n_clones=3))
+    wb_single = w.weight(_rec("2", "SYN:0001", "GO:1", n_donors=1, n_clones=1))
+    check(wb_multi.composite > wb_single.composite, "multi-donor/multi-clone outweights single-line/single-clone")
+    check(any("clonal drift" in n for n in wb_single.notes), "single-clone flags clonal drift risk")
+
+    fg_multi = [_rec(f"m{i}", "SYN:0001", "GO:PIONEER", n_donors=3, n_clones=3) for i in range(3)]
+    fg_single = [_rec(f"s{i}", "SYN:0001", "GO:CLONE1", n_donors=1, n_clones=1) for i in range(3)]
+    bg = [_rec(f"b{i}", "SYN:OTHER", f"GO:BG{i}", n_donors=2, n_clones=2) for i in range(20)]
+
+    eng = AssociationEngine()
+    assocs = {a.pathway_key: a for a in eng.associate(fg_multi + fg_single, bg)}
+    check(assocs["GO:PIONEER"].confidence_tier() == "pioneering-multi-line",
+          f"single-lab multi-donor tiered pioneering-multi-line (got {assocs['GO:PIONEER'].confidence_tier()})")
+    check(assocs["GO:CLONE1"].confidence_tier() == "single-lab",
+          f"single-lab single-clone stays single-lab (got {assocs['GO:CLONE1'].confidence_tier()})")
+    check(any("clonal variability" in c for c in assocs["GO:CLONE1"].caveats()),
+          "single-line/single-clone caveat warns of high clonal variability risk")
+
+
 def main() -> int:
     print("=" * 70)
     print("SYNAPTIK regression suite")
@@ -744,6 +805,7 @@ def main() -> int:
     test_omics_evidence()
     test_cross_class_contradictions()
     test_renormalization_identity()
+    test_ipsc_donor_and_clonal_diversity()
     print("\n" + "=" * 70)
     if FAILURES:
         print(f"{len(FAILURES)} FAILURE(S):")
