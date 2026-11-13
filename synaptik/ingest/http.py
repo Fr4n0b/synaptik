@@ -121,7 +121,7 @@ class PoliteSession:
         if contact_email:
             ua += f"; mailto:{contact_email}"
         ua += ")"
-        self.session.headers.update({"User-Agent": ua, "Accept": "application/json"})
+        self.session.headers.update({"User-Agent": ua, "Accept": "*/*"})
 
         self._stats_lock = threading.Lock()
         self._cache_lock = threading.Lock()

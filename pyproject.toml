@@ -40,4 +40,4 @@ synaptik = "synaptik.cli.main:main"
 include = ["synaptik*"]
 
 [tool.setuptools.package-data]
-synaptik = ["ui/static/*"]
+synaptik = ["ui/static/*", "drug/*.json", "sequence/*.json"]

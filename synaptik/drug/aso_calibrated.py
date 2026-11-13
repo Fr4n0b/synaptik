@@ -1,23 +1,35 @@
-"""Empirically calibrated ASO gapmer knockdown potency model.
+"""Empirically calibrated ASO gapmer knockdown potency model (v2 MLP).
 
-Fitted on 131,706 non-neurogenetics unique (gene, sequence) ASO measurements
-across 327 human genes from ASO Atlas (5-fold gene-grouped CV selected L2
-alpha=200.0, CV Spearman rho=0.2709) and evaluated on a strictly held-out
-neurogenetics test set of 26,844 ASOs across 15 genes (SOD1, MAPT, HTT, SNCA,
-ATXN2, APP, LRRK2, SMN1, FUS, C9ORF72, STMN2, BACE1, APOE, GRN, SCN1A):
+Fitted on 131,566 non-neurogenetics unique (gene, sequence) gapmer ASO
+measurements across 327 human genes from ASO Atlas (gene-grouped validation
+early stopping, val Spearman rho = 0.3775) and evaluated on a strictly
+held-out neurogenetics test set of 25,130 gapmers across 12 genes (SOD1,
+MAPT, HTT, SNCA, ATXN2, APP, LRRK2, SMN1, FUS, C9ORF72, BACE1, APOE):
 
   - Uncalibrated biophysical heuristic: Spearman rho = 0.1652, ROC-AUC = 0.5623
-  - Calibrated biophysical model:     Spearman rho = 0.3268, ROC-AUC = 0.6670
+  - V1 linear biophysical model:        Spearman rho = 0.3268, ROC-AUC = 0.6670
+  - V2 positional+thermo non-linear MLP: Spearman rho = 0.3763, ROC-AUC = 0.6929
+
+External zero-shot validation (completely independent datasets):
+  - Master_ASO_KD_clean (n=19): Spearman rho = 0.2698
+  - wetlab_KD (n=8):            Spearman rho = 0.4286
 
 Scope and caveats
 -----------------
-This score models sequence-intrinsic and thermodynamic knockdown potency in
-vitro from ASO primary sequence alone. It does NOT account for target mRNA
-secondary-structure accessibility, nuclear vs cytoplasmic localization,
-delivery/conjugation, or transcriptome-wide off-target hybridization.
+Models sequence-intrinsic, positional, and thermodynamic knockdown potency
+in vitro for RNase H1 gapmers from ASO primary sequence alone. Does NOT
+account for target mRNA secondary-structure accessibility, nuclear vs
+cytoplasmic localization, delivery/conjugation, or transcriptome off-targets.
 """
 
 from __future__ import annotations
+
+import json
+import math
+from functools import lru_cache
+from pathlib import Path
+
+import numpy as np
 
 _DINUCS = (
     "AA", "AC", "AG", "AT",
@@ -25,47 +37,58 @@ _DINUCS = (
     "GA", "GC", "GG", "GT",
     "TA", "TC", "TG", "TT",
 )
+_MOTIFS = (
+    "GGGG", "TTTT", "AAAA", "CCCC", "GGG", "CCC",
+    "CCAC", "TCCC", "GACT", "TCCT", "GGGA", "ATGG",
+    "GCTG", "CAGC", "TGGA", "CG",
+)
 
 CALIBRATION_METADATA = {
     "dataset": "ASO Atlas (barneyhill/aso_atlas)",
+    "model": "v2_positional_thermo_mlp_96_64_32_1",
     "n_train": 131706,
+    "n_train_gapmer_only": 131566,
     "n_train_genes": 327,
-    "n_test_neuro": 26844,
-    "n_test_neuro_genes": 15,
-    "cv_spearman_rho": 0.2709,
-    "heldout_neuro_spearman_rho": 0.3268,
-    "heldout_neuro_auroc_70pct": 0.6670,
+    "n_test_neuro_gapmer": 25130,
+    "n_test_neuro_genes": 12,
+    "val_spearman_rho": 0.3775,
+    "heldout_neuro_spearman_rho": 0.3763,
+    "heldout_neuro_auroc_70pct": 0.6929,
     "baseline_neuro_spearman_rho": 0.1652,
     "baseline_neuro_auroc_70pct": 0.5623,
 }
 
-_MU = (
-    18.165239, 0.472215, 0.242234, 0.263861, 0.263924, 0.219026, 0.253189,
-    -23.051393, 59.138629, 115.475951, 0.001526, 0.072001, 0.144154, 0.210233,
-    -2.044263, 3.073892, 0.359596, 0.483184, 0.500569, 0.456457, 0.083717,
-    0.079359, 0.048927, 0.070111, 0.057542, 0.071651, 0.065161, 0.082288,
-    0.071989, 0.021442, 0.075937, 0.056398, 0.057355, 0.054707, 0.050605,
-    0.056053, 0.066564, 0.068832, 0.073365,
-)
 
-_SD = (
-    1.993697, 0.138732, 0.136192, 0.111569, 0.117002, 0.11016, 0.11652,
-    5.255346, 10.358017, 135.066932, 0.039036, 0.25849, 0.351246, 0.407474,
-    1.600795, 0.803528, 0.651321, 0.242035, 0.239874, 0.172451, 0.276963,
-    0.270298, 0.215716, 0.075854, 0.055023, 0.059536, 0.059645, 0.061467,
-    0.078614, 0.039041, 0.060285, 0.055221, 0.056277, 0.061469, 0.052167,
-    0.059347, 0.058209, 0.058581, 0.080371,
-)
+@lru_cache(maxsize=1)
+def _load_mlp_weights() -> tuple[np.ndarray, ...]:
+    data = json.loads(Path(__file__).with_name("aso_mlp_v2.json").read_text(encoding="utf-8"))
+    return (
+        np.array(data["mu"], dtype=np.float32),
+        np.array(data["sd"], dtype=np.float32),
+        np.array(data["W1"], dtype=np.float32),
+        np.array(data["b1"], dtype=np.float32),
+        np.array(data["W2"], dtype=np.float32),
+        np.array(data["b2"], dtype=np.float32),
+        np.array(data["W3"], dtype=np.float32),
+        np.array(data["b3"], dtype=np.float32),
+    )
 
-_INTERCEPT = 44.535659
-_WEIGHTS = (
-    -2.171427, 5.116264, -17.129301, -1.015785, -5.097857, 4.861157, 1.495752,
-    -20.596454, -14.986423, -0.562786, -0.385045, -0.198934, -0.81645, -0.452737,
-    1.8845, -0.49632, 0.072449, 0.96806, 3.096347, 0.597065, -0.144788,
-    -0.359465, 0.285506, -4.710588, -0.929686, -2.931187, 0.570816, 1.398693,
-    -2.56053, -1.663482, 0.704723, 0.882507, 2.380185, -0.858665, 4.257558,
-    0.209922, 2.313501, -0.9573, 3.031786,
-)
+
+def _base_fracs(sub: str) -> list[float]:
+    m = max(1, len(sub))
+    return [sub.count("A") / m, sub.count("C") / m, sub.count("G") / m, sub.count("T") / m]
+
+
+def _max_run(seq: str) -> float:
+    best, cur = 1, 1
+    for i in range(1, len(seq)):
+        if seq[i] == seq[i - 1]:
+            cur += 1
+            if cur > best:
+                best = cur
+        else:
+            cur = 1
+    return float(best)
 
 
 def predict_empirical_knockdown_pct(
@@ -77,27 +100,31 @@ def predict_empirical_knockdown_pct(
     cpg_count: int,
 ) -> float:
     """Predict expected in-vitro knockdown (%) from ASO sequence & thermodynamics."""
+    from .aso import ASOChemistry, compute_thermodynamics
+
     seq = oligo_seq.strip().upper().replace("U", "T")
     n = len(seq)
     if n < 8:
         return 0.0
 
     gc = (seq.count("G") + seq.count("C")) / n
-    a_frac = seq.count("A") / n
-    t_frac = seq.count("T") / n
-    g_frac = seq.count("G") / n
-    c_frac = seq.count("C") / n
-    has_g4 = 1.0 if "GGGG" in seq else 0.0
-    has_t4 = 1.0 if "TTTT" in seq else 0.0
-    has_ggg = 1.0 if "GGG" in seq else 0.0
-    has_ccc = 1.0 if "CCC" in seq else 0.0
-    end5_gc = (seq[:4].count("G") + seq[:4].count("C")) / 4.0
-    end3_gc = (seq[-4:].count("G") + seq[-4:].count("C")) / 4.0
-    mid = seq[4:-4]
-    mid_gc = (mid.count("G") + mid.count("C")) / max(1, len(mid))
-    ccac = 1.0 if "CCAC" in seq else 0.0
-    tccc = 1.0 if "TCCC" in seq else 0.0
-    gact = 1.0 if "GACT" in seq else 0.0
+    w5 = seq[:5]
+    w3 = seq[-5:]
+    gap = seq[5:-5] if n > 10 else seq[2:-2]
+    _, _, dg_w5, _ = compute_thermodynamics(w5, chemistry=ASOChemistry.MOE_PS)
+    _, _, dg_w3, _ = compute_thermodynamics(w3, chemistry=ASOChemistry.MOE_PS)
+    _, _, dg_gap, _ = compute_thermodynamics(gap, chemistry=ASOChemistry.GAPMER_5_10_5)
+
+    bin_feats: list[float] = []
+    for b in range(5):
+        lo = (b * n) // 5
+        hi = ((b + 1) * n) // 5
+        bin_feats.extend(_base_fracs(seq[lo:hi]))
+
+    end_onehot: list[float] = []
+    for pos in (0, 1, 2, -3, -2, -1):
+        ch = seq[pos]
+        end_onehot.extend([1.0 if ch == b else 0.0 for b in "ACGT"])
 
     denom = max(1, n - 1)
     di_counts = {d: 0 for d in _DINUCS}
@@ -106,15 +133,33 @@ def predict_empirical_knockdown_pct(
         if d in di_counts:
             di_counts[d] += 1
     di_freqs = [di_counts[d] / denom for d in _DINUCS]
+    motif_hits = [float(seq.count(m)) for m in _MOTIFS]
 
-    feats = [
-        float(n), gc, gc * gc, a_frac, t_frac, g_frac, c_frac,
-        dg37, tm, (tm - 62.0) ** 2,
-        has_g4, has_t4, has_ggg, has_ccc, hairpin_dg, self_dimer, float(cpg_count),
-        end5_gc, end3_gc, mid_gc, ccac, tccc, gact,
-    ] + di_freqs
+    ent = 0.0
+    for f in _base_fracs(seq):
+        if f > 0:
+            ent -= f * math.log2(f)
+    pur_frac = (seq.count("A") + seq.count("G")) / n
+    max_run = _max_run(seq)
 
-    pred = _INTERCEPT
-    for val, mu, sd, w in zip(feats, _MU, _SD, _WEIGHTS):
-        pred += ((val - mu) / sd) * w
+    feats = np.array(
+        [
+            float(n), gc, gc * gc, dg37, tm, (tm - 62.0) ** 2,
+            hairpin_dg, self_dimer, float(cpg_count),
+            dg_w5, dg_w3, dg_gap, abs(dg_w5 - dg_w3),
+            ent, pur_frac, max_run,
+        ]
+        + _base_fracs(seq)
+        + bin_feats
+        + end_onehot
+        + di_freqs
+        + motif_hits,
+        dtype=np.float32,
+    )
+
+    mu, sd, W1, b1, W2, b2, W3, b3 = _load_mlp_weights()
+    xs = (feats - mu) / sd
+    a1 = np.maximum(0.0, xs @ W1 + b1)
+    a2 = np.maximum(0.0, a1 @ W2 + b2)
+    pred = float((a2 @ W3 + b3).ravel()[0])
     return round(max(0.0, min(100.0, pred)), 1)

@@ -265,9 +265,9 @@ def scan_splice_sites(
     return sorted(out, key=lambda t: -t[1])
 
 
-# MFASS-calibrated splice-disruption weights (5-fold exon-grouped CV across
-# 29,367 human mutant SNVs in 2,247 exons: AUROC=0.7350, AUPRC=0.4322 vs
-# baseline HeuristicSplicePredictor AUROC=0.7009, AUPRC=0.1204).
+# MFASS + Neuronal RBP calibrated splice-disruption MLP (5-fold exon-grouped
+# CV across 29,367 human mutant SNVs in 2,247 exons: AUROC=0.7770, AUPRC=0.4961
+# vs baseline HeuristicSplicePredictor AUROC=0.7009, AUPRC=0.1204).
 _MFASS_ESE_HEXAMERS = frozenset({
     "GAAGAA", "AAGAAG", "AGAAGA", "GAAGAT", "GATGAAG", "CAGATG", "TGGAAG", "GGAGGA",
     "CGACGA", "ACGACG", "GACGAC", "AGAGGA", "GGAGAG", "AGGAGG", "CAAGAA", "AACAAG",
@@ -278,14 +278,38 @@ _MFASS_ESS_HEXAMERS = frozenset({
     "GTAAGT", "TAAGTT", "TAGGTA", "AGGTAG", "TTAGTA", "GTAGGT", "TTTGGG", "TTGGGT",
     "TGGGGT", "GGGGTT", "CAGCAG", "TTATTT", "TTTTTT", "AAAAAA",
 })
-_MFASS_MU = (1.055017, 0.343318, 1.78599, 0.744353, 0.037525, 0.034154, 0.201076, -0.203323)
-_MFASS_SD = (2.176298, 1.059367, 2.290877, 1.612352, 0.222714, 0.222721, 0.400805, 0.868728)
-_MFASS_INTERCEPT = 0.067525
-_MFASS_WEIGHTS = (0.01439, -0.001662, 0.045107, 0.007756, 0.000677, 0.011845, -0.010153, 0.010387)
+_TDP43_MOTIFS = ("TGTGTG", "GTGTGT", "TGTGTT", "GTGTGA")
+_PTBP_MOTIFS = ("TCTCTC", "CTCTCT", "TTCTCT", "TCTTCT", "CTCTTT")
+_RBFOX_MOTIFS = ("TGCATG", "GCATGC")
+_NOVA_MOTIFS = ("TCATTC", "CCATCC", "TCATCC", "CCATTC")
+_BRANCH_MOTIFS = ("CTAAC", "CTGAC", "CTCAC", "TTAAC", "TACTAAC")
 
 
 def _count_hexamers(window: str, motifs: frozenset[str]) -> int:
     return sum(1 for i in range(max(0, len(window) - 5)) if window[i : i + 6] in motifs)
+
+
+def _count_tuple_motifs(window: str, motifs: tuple[str, ...]) -> int:
+    return sum(window.count(m) for m in motifs)
+
+
+def _load_splice_mlp_v2():
+    import json
+    import numpy as np
+
+    p = Path(__file__).with_name("splice_mlp_v2.json")
+    data = json.loads(p.read_text(encoding="utf-8"))
+    return (
+        np.array(data["mu"], dtype=np.float32),
+        np.array(data["sd"], dtype=np.float32),
+        np.array(data["W1"], dtype=np.float32),
+        np.array(data["b1"], dtype=np.float32),
+        np.array(data["W2"], dtype=np.float32),
+        np.array(data["b2"], dtype=np.float32),
+    )
+
+
+_SPLICE_MLP_CACHE = None
 
 
 def _score_mfass_disruption(
@@ -296,34 +320,69 @@ def _score_mfass_disruption(
     ref_acceptor: dict[int, float],
     alt_acceptor: dict[int, float],
 ) -> float:
-    """Compute MFASS-calibrated splice-disruption score clamped to [0, 1]."""
+    """Compute MFASS+RBP-calibrated splice-disruption probability in [0, 1]."""
+    global _SPLICE_MLP_CACHE
+    import numpy as np
+
+    if _SPLICE_MLP_CACHE is None:
+        _SPLICE_MLP_CACHE = _load_splice_mlp_v2()
+    mu, sd, W1, b1, W2, b2 = _SPLICE_MLP_CACHE
+
     ref_u = ref_sequence.upper()
     alt_u = alt_sequence.upper()
-    d_pos = set(ref_donor) | set(alt_donor)
-    a_pos = set(ref_acceptor) | set(alt_acceptor)
+    diffs = [i for i, (a, b) in enumerate(zip(ref_u, alt_u)) if a != b]
+    vpos = diffs[0] if diffs else len(ref_u) // 2
+    wlo, whi = max(0, vpos - 15), min(len(alt_u), vpos + 16)
+
+    d_pos = {p for p in ref_donor if wlo <= p < whi} | {p for p in alt_donor if wlo <= p < whi}
+    a_pos = {p for p in ref_acceptor if wlo <= p < whi} | {p for p in alt_acceptor if wlo <= p < whi}
+    if not d_pos:
+        d_pos = set(ref_donor) | set(alt_donor)
+    if not a_pos:
+        a_pos = set(ref_acceptor) | set(alt_acceptor)
+
     max_d_loss = max((ref_donor.get(p, 0.0) - alt_donor.get(p, 0.0) for p in d_pos), default=0.0)
     max_d_gain = max((alt_donor.get(p, 0.0) - ref_donor.get(p, 0.0) for p in d_pos), default=0.0)
     max_a_loss = max((ref_acceptor.get(p, 0.0) - alt_acceptor.get(p, 0.0) for p in a_pos), default=0.0)
     max_a_gain = max((alt_acceptor.get(p, 0.0) - ref_acceptor.get(p, 0.0) for p in a_pos), default=0.0)
+    max_ref_d = max((ref_donor.get(p, 0.0) for p in d_pos), default=0.0)
+    max_ref_a = max((ref_acceptor.get(p, 0.0) for p in a_pos), default=0.0)
 
-    diffs = [i for i, (a, b) in enumerate(zip(ref_u, alt_u)) if a != b]
-    vpos = diffs[0] if diffs else len(ref_u) // 2
-    lo = max(0, vpos - 5)
-    hi = min(len(ref_u), vpos + 6)
-    ese_loss = max(0, _count_hexamers(ref_u[lo:hi], _MFASS_ESE_HEXAMERS) - _count_hexamers(alt_u[lo:hi], _MFASS_ESE_HEXAMERS))
-    ess_gain = max(0, _count_hexamers(alt_u[lo:hi], _MFASS_ESS_HEXAMERS) - _count_hexamers(ref_u[lo:hi], _MFASS_ESS_HEXAMERS))
+    lo = max(0, vpos - 6)
+    hi = min(len(ref_u), vpos + 7)
+    rw, aw = ref_u[lo:hi], alt_u[lo:hi]
+    ese_loss = float(_count_hexamers(rw, _MFASS_ESE_HEXAMERS) - _count_hexamers(aw, _MFASS_ESE_HEXAMERS))
+    ess_gain = float(_count_hexamers(aw, _MFASS_ESS_HEXAMERS) - _count_hexamers(rw, _MFASS_ESS_HEXAMERS))
+    tdp_delta = float(_count_tuple_motifs(aw, _TDP43_MOTIFS) - _count_tuple_motifs(rw, _TDP43_MOTIFS))
+    ptbp_delta = float(_count_tuple_motifs(aw, _PTBP_MOTIFS) - _count_tuple_motifs(rw, _PTBP_MOTIFS))
+    rbfox_delta = float(_count_tuple_motifs(aw, _RBFOX_MOTIFS) - _count_tuple_motifs(rw, _RBFOX_MOTIFS))
+    nova_delta = float(_count_tuple_motifs(aw, _NOVA_MOTIFS) - _count_tuple_motifs(rw, _NOVA_MOTIFS))
+    branch_loss = float(max(0, _count_tuple_motifs(rw, _BRANCH_MOTIFS) - _count_tuple_motifs(aw, _BRANCH_MOTIFS)))
+
+    plo, phi = max(0, vpos - 10), min(len(ref_u), vpos + 11)
+    ppt_ref = sum(1 for c in ref_u[plo:phi] if c in "CT") / max(1, phi - plo)
+    ppt_alt = sum(1 for c in alt_u[plo:phi] if c in "CT") / max(1, phi - plo)
+    ppt_delta = ppt_alt - ppt_ref
+
     pyr_loss = 1.0 if (vpos < len(ref_u) and ref_u[vpos] in "CT" and vpos < len(alt_u) and alt_u[vpos] in "AG") else 0.0
     gc_delta = float((alt_u.count("G") + alt_u.count("C")) - (ref_u.count("G") + ref_u.count("C")))
+    rel_pos = abs(vpos - len(ref_u) / 2.0) / max(1.0, len(ref_u) / 2.0)
+    is_gt_ag_core = 1.0 if (max_d_loss >= 6.0 or max_a_loss >= 6.0) else 0.0
 
-    feats = (
+    feats = np.array([
         max(0.0, max_d_loss), max(0.0, max_d_gain),
         max(0.0, max_a_loss), max(0.0, max_a_gain),
-        float(ese_loss), float(ess_gain), pyr_loss, gc_delta,
-    )
-    score = _MFASS_INTERCEPT
-    for val, mu, sd, w in zip(feats, _MFASS_MU, _MFASS_SD, _MFASS_WEIGHTS):
-        score += ((val - mu) / sd) * w
-    return round(max(0.0, min(1.0, score)), 4)
+        max_ref_d, max_ref_a,
+        ese_loss, ess_gain, tdp_delta, ptbp_delta, rbfox_delta, nova_delta, branch_loss,
+        ppt_delta, pyr_loss, gc_delta, rel_pos, is_gt_ag_core,
+    ], dtype=np.float32)
+
+    xs = (feats - mu) / sd
+    a1 = np.maximum(0.0, xs @ W1 + b1)
+    logit = float((a1 @ W2 + b2).ravel()[0])
+    logit = max(-20.0, min(20.0, logit))
+    prob = 1.0 / (1.0 + math.exp(-logit))
+    return round(prob, 4)
 
 
 class HeuristicSplicePredictor:

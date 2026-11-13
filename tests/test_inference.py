@@ -790,6 +790,71 @@ def test_ipsc_donor_and_clonal_diversity() -> None:
           "single-line/single-clone caveat warns of high clonal variability risk")
 
 
+def test_fulltext_extraction() -> None:
+    print("\n[full-text JATS extraction: donors, clones, isogenic, DIV, null results]")
+    from synaptik.extract.fulltext import (
+        extract_experimental_design_metadata,
+        extract_records_from_fulltext,
+    )
+    from synaptik.schema import Direction, SourceMetadata
+
+    methods = (
+        "iPSC-derived NGN2 cortical neurons were generated from 3 patient lines "
+        "with 2 independent clones per line and CRISPR-corrected isogenic controls "
+        "and matured to DIV28."
+    )
+    meta = extract_experimental_design_metadata(methods)
+    check(meta["n_donor_lines"] == 3, f"extracts n_donor_lines=3 (got {meta['n_donor_lines']})")
+    check(meta["n_clones"] == 2, f"extracts n_clones=2 (got {meta['n_clones']})")
+    check(meta["is_isogenic_pair"] is True, "detects isogenic control")
+    check(meta["days_in_vitro"] == 28, f"extracts DIV28 (got {meta['days_in_vitro']})")
+
+    src = SourceMetadata(source_id="PMC999999", pmcid="PMC999999", year=2024, title="TDP-43 iPSC study")
+    sections = {
+        "methods": methods,
+        "results": (
+            "In TARDBP mutant neurons, cryptic exon inclusion was significantly increased "
+            "compared to isogenic controls. However, neurite outgrowth showed no significant "
+            "difference between mutant and control lines."
+        ),
+    }
+    recs = extract_records_from_fulltext(src, sections)
+    check(len(recs) >= 2, f"extracts positive + null records from full text (got {len(recs)})")
+    dirs = {r.outcome.direction for r in recs}
+    check(Direction.INCREASE in dirs and Direction.NO_CHANGE in dirs,
+          f"preserves both directional and null results ({dirs})")
+    check(all(r.cell_model.n_donor_lines == 3 and r.cell_model.n_clones == 2 for r in recs),
+          "attaches donor and clone counts to extracted ExperimentRecords")
+
+
+def test_cryptic_exon_benchmark() -> None:
+    print("\n[TDP-43 neuronal cryptic exon benchmark]")
+    from synaptik.sequence.benchmark_cryptic import run_cryptic_exon_benchmark
+
+    rep = run_cryptic_exon_benchmark()
+    check(rep.n_loci == 6, f"evaluates 6 cryptic exon loci (got {rep.n_loci})")
+    check(rep.n_splice_detected == 6, f"detects all 6 cryptic splice events (got {rep.n_splice_detected})")
+    check(rep.n_top1_junction_hit >= 5, f">=5/6 rank cryptic-junction ASO #1 (got {rep.n_top1_junction_hit})")
+
+
+def test_audit_dossier() -> None:
+    print("\n[turnkey lab audit dossier]")
+    from synaptik.cli.commands.audit import _build_audit_dict, _format_markdown
+
+    d = _build_audit_dict(
+        gene="STMN2",
+        phenotype=None,
+        db_path="nonexistent_audit_test.db",
+        target_seq="UUUUCCUUUCCCUUUUUUCCCAGGGCCAUUGUGUGGACUCAGGCAUGGCGUCCAGGUAAGU",
+        mode="splice",
+    )
+    check(d["gene"] == "STMN2", "audit records gene symbol")
+    check(len(d["aso_shortlist"]) == 5, f"audit produces top-5 ASO shortlist (got {len(d['aso_shortlist'])})")
+    md = _format_markdown(d)
+    check("# SYNAPTIK Lab Audit Dossier: STMN2" in md and "## Caveats" in md,
+          "markdown dossier includes title and caveats")
+
+
 def main() -> int:
     print("=" * 70)
     print("SYNAPTIK regression suite")
@@ -812,6 +877,9 @@ def main() -> int:
     test_cross_class_contradictions()
     test_renormalization_identity()
     test_ipsc_donor_and_clonal_diversity()
+    test_fulltext_extraction()
+    test_cryptic_exon_benchmark()
+    test_audit_dossier()
     print("\n" + "=" * 70)
     if FAILURES:
         print(f"{len(FAILURES)} FAILURE(S):")
