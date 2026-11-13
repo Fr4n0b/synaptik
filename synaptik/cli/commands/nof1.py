@@ -129,7 +129,7 @@ def cmd_nof1(args) -> int:
     print(f"  Duplex Thermodynamics       : Tm = {s3['melting_temp_c']} C | dG_37 = {s3['gibbs_free_energy_37c']} kcal/mol | GC = {s3['gc_content_pct']}%")
     print(f"  Biophysical Liabilities     : {'CLEARED' if s3['biophysical_liabilities_cleared'] else 'WARNING'}")
     print(f"  Neural Off-Target Profile   : 0-mismatch: {s3['off_target_0_mismatch']}, 1-mismatch: {s3['off_target_1_mismatch']}")
-    print(f"  Predicted Human CSF t_1/2   : ~{s3['predicted_cns_half_life_days']} days (intrathecal)")
+    print(f"  CSF t_1/2 (chem. class)     : ~{s3['chemistry_class_csf_half_life_days']} days (intrathecal)")
     print(f"  Vendor Order Specification  : {s3['vendor_idt_format']}")
 
     print("\nStage 4: Causal Counterfactual Simulation (Transcriptomic Rescue)")

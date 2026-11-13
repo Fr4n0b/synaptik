@@ -27,6 +27,8 @@ def cmd_aso(args) -> int:
         target_gene=gene,
         target_region=region,
         top_k=top_k,
+        transcriptome=getattr(args, "transcriptome", None),
+        max_mismatches=getattr(args, "max_mismatches", None),
     )
 
     if args.json:
@@ -57,7 +59,7 @@ def cmd_aso(args) -> int:
         print(Fmt.yellow("No candidates passed all biophysical and off-target screening filters."))
         return 0
 
-    header(f"Top {len(res.candidates)} Synthesis-Ready ASO Candidates")
+    header(f"Top {len(res.candidates)} Candidate ASOs (for experimental validation)")
     print(f"  {'Rank':<5s} {'ASO Sequence (5->3)':<24s} {'Tm (C)':>7s} {'dG_37':>8s} {'GC%':>6s} {'Score':>7s}  IDT Order Format")
     for rank, c in enumerate(res.candidates, start=1):
         score_fmt = Fmt.green(f"{c.composite_score:5.1f}") if c.composite_score >= 80 else f"{c.composite_score:5.1f}"
@@ -70,10 +72,41 @@ def cmd_aso(args) -> int:
     print(f"  Target RNA (5'->3')     : {lead.target_sequence_5_to_3} (pos {lead.target_start}-{lead.target_end})")
     print(f"  Duplex Thermodynamics   : Tm = {lead.melting_temp_c} C, dH = {lead.delta_h_kcal_mol} kcal/mol, dS = {lead.delta_s_cal_mol_k} cal/(mol*K), dG_37 = {lead.gibbs_free_energy_37c} kcal/mol")
     print(f"  Biophysical Liabilities : G-quadruplex={lead.has_quadruplex_risk}, Poly-T/U={lead.has_poly_u_risk}, Hairpin dG={lead.hairpin_delta_g} kcal/mol, 3'-Dimer={lead.self_dimer_score}")
-    print(f"  Neural Off-Targets      : 0-mismatch: {lead.off_target_0_mismatch}, 1-mismatch: {lead.off_target_1_mismatch} (min distance: {lead.min_mismatch_distance} nt)")
+    sp = lead.specificity
+    if lead.specificity_screened:
+        counts = sp.counts_by_mismatch()
+        summary = (", ".join(f"{n}mm: {c}" for n, c in counts.items())
+                   if counts else "none found")
+        style = Fmt.red if any(n <= 1 for n in counts) else (
+            Fmt.yellow if counts else Fmt.green)
+        print(f"  Off-Target Screen       : {style(summary)}  "
+              f"[{sp.n_transcripts_searched:,} transcripts, "
+              f"{sp.n_bases_searched:,} bp searched, "
+              f"<={sp.max_mismatches_searched} mismatches]")
+        for h in sp.hits[:5]:
+            print(Fmt.dim(f"                            - {h.describe()}"))
+    else:
+        print(f"  Off-Target Screen       : {Fmt.red('NOT SCREENED')} "
+              "(no --transcriptome given; no specificity evidence)")
     print(f"  Molecular Weight        : {lead.molecular_weight_da:,.1f} Da (sodium salt)")
-    print(f"  Predicted CSF Half-Life : ~{lead.predicted_cns_half_life_days} days (human intrathecal)")
+    print(f"  CSF Half-Life (class)   : ~{lead.chemistry_class_csf_half_life_days} days "
+          f"for {lead.chemistry.value} chemistry "
+          + Fmt.dim("(literature class value, not a per-sequence prediction)"))
     print(f"  Vendor Order String     : {lead.vendor_idt_format}")
+
+    print()
+    print(Fmt.bold("Before ordering this oligo"))
+    for item in (
+        "Off-target screen against a current full transcriptome "
+        "(BLAST/Bowtie), not only this tool.",
+        "Confirm the intended splicing or knockdown effect in cells "
+        "(RT-PCR / RNA-seq) before drawing any conclusion.",
+        "Transcriptome-wide RNA-seq of treated cells to detect off-target "
+        "effects this sequence search cannot predict.",
+        "Any use beyond cultured cells requires toxicology, regulatory and "
+        "ethics review. This tool does not assess any of those.",
+    ):
+        print(f"  [ ] {item}")
 
     if lead.penalties_and_warnings:
         print()
@@ -125,5 +158,12 @@ def register(sub, common) -> None:
     s.add_argument("--top", type=int, default=3, help="number of top candidate ASOs to display (default: 3)")
     s.add_argument("--export", metavar="PATH", help="export candidates to CSV file")
     s.add_argument("--svg", metavar="PATH", help="export publication-grade SVG splicing and ASO architecture diagram")
+    s.add_argument("--transcriptome", metavar="FASTA",
+                   help="reference transcripts (FASTA, .gz ok) to screen "
+                        "candidates against. Without this no specificity "
+                        "claim is made.")
+    s.add_argument("--max-mismatches", type=int,
+                   help="off-target mismatch tolerance (default: 3 for "
+                        "gapmers, 2 for splice-switching)")
     s.add_argument("--json", action="store_true", help="output candidate specifications as JSON")
     s.set_defaults(func=cmd_aso)

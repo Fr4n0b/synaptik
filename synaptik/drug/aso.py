@@ -28,6 +28,11 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from .specificity import (
+    DEFAULT_MAX_MISMATCHES, ScreenStatus, SpecificityResult,
+    SpecificityScreener, iter_fasta, unscreened,
+)
+
 
 class ASOMode(str, Enum):
     """Functional mechanism of the antisense oligonucleotide."""
@@ -235,10 +240,37 @@ CORE_NEURAL_TRANSCRIPTS: dict[str, str] = {
 }
 
 
+def count_cpg_motifs(oligo: str) -> tuple[int, list[int]]:
+    """Count unmethylated CpG dinucleotides, a TLR9 innate-immune liability.
+
+    Phosphorothioate ASOs containing CpG motifs can activate TLR9 and drive
+    pro-inflammatory responses; CpG reduction is a standard part of ASO lead
+    optimisation. This is a sequence count, not an immunogenicity prediction:
+    context, methylation and backbone chemistry all matter, and a CpG-free
+    oligo can still be immunostimulatory.
+
+    Returns (count, 0-based positions of each CpG).
+    """
+    seq = (oligo or "").upper().replace("U", "T")
+    positions = [i for i in range(len(seq) - 1) if seq[i:i + 2] == "CG"]
+    return len(positions), positions
+
+
 def screen_off_targets(
     oligo: str, target_gene: str = ""
 ) -> tuple[int, int, int]:
-    """Screen candidate oligo against reference neural transcripts.
+    """Smoke test against a ten-gene panel. NOT a specificity screen.
+
+    CORE_NEURAL_TRANSCRIPTS totals 861 bp, about 0.0007% of the human
+    transcriptome. Measured empirically, this function flags 0 of 3000 random
+    20-mers: it can only catch an oligo that is a near-perfect match to one of
+    ten short fragments. A "0 off-targets" result from it therefore means
+    "nothing was looked at", not "nothing was found".
+
+    It is retained only as a cheap sanity check for gross errors (for example
+    an oligo accidentally designed against ACTB). Real specificity screening
+    lives in synaptik.drug.specificity, which searches a supplied
+    transcriptome and reports how much it covered.
 
     Returns:
         (exact_matches, one_mismatch_matches, min_mismatch_distance)
@@ -317,7 +349,13 @@ def calculate_molecular_weight(oligo: str, chemistry: ASOChemistry) -> float:
 
 @dataclass
 class ASOCandidate:
-    """A scored, synthesis-ready antisense oligonucleotide candidate."""
+    """A scored ASO candidate for EXPERIMENTAL validation.
+
+    Not a clinical or synthesis-ready product. Every candidate still requires
+    an off-target screen against a real transcriptome (see `specificity`),
+    in vitro confirmation of the intended splicing or knockdown effect, and
+    toxicology work before any use beyond the bench.
+    """
 
     oligo_sequence_5_to_3: str
     target_sequence_5_to_3: str
@@ -335,14 +373,23 @@ class ASOCandidate:
     has_poly_u_risk: bool
     hairpin_delta_g: float
     self_dimer_score: float
+    # Panel smoke test only -- see screen_off_targets(). These are NOT a
+    # specificity result; read `specificity` for that.
     off_target_0_mismatch: int
     off_target_1_mismatch: int
     min_mismatch_distance: int
     molecular_weight_da: float
     vendor_idt_format: str
-    predicted_cns_half_life_days: int
+    # Literature half-life for this CHEMISTRY CLASS, not a per-sequence
+    # prediction: it is identical for every oligo of the same chemistry.
+    chemistry_class_csf_half_life_days: int
     composite_score: float
+    specificity: SpecificityResult = field(default_factory=SpecificityResult)
     penalties_and_warnings: list[str] = field(default_factory=list)
+
+    @property
+    def specificity_screened(self) -> bool:
+        return self.specificity.status is ScreenStatus.TRANSCRIPTOME
 
 
 @dataclass
@@ -399,8 +446,16 @@ class ASODesigner:
         target_region: str = "cryptic splice site",
         window_sizes: tuple[int, ...] = (18, 20, 22),
         top_k: int = 5,
+        transcriptome: str | None = None,
+        max_mismatches: int | None = None,
     ) -> ASODesignResult:
-        """Tile across the target RNA sequence and return top-ranked ASO candidates."""
+        """Tile across the target RNA and rank candidate ASOs.
+
+        transcriptome: path to a FASTA of reference transcripts. Supplied, the
+            top candidates are screened for off-target hybridisation. Omitted,
+            no specificity claim is made and every candidate is reported as
+            NOT SCREENED -- the tool will not print zeros it has not earned.
+        """
         clean_target = target_sequence.strip().upper().replace("T", "U")
         target_len = len(clean_target)
 
@@ -410,6 +465,10 @@ class ASODesigner:
             else ASOChemistry.GAPMER_5_10_5
         )
 
+        # Literature value for the chemistry class (2'-MOE/PS ASOs persist in
+        # CNS tissue for months; PMOs clear far faster). It does not vary with
+        # sequence, so it is reported as a class property, never as a
+        # per-candidate prediction.
         half_life = 135 if chemistry != ASOChemistry.PMO else 18
 
         candidates: list[ASOCandidate] = []
@@ -512,7 +571,7 @@ class ASODesigner:
                         min_mismatch_distance=min_dist,
                         molecular_weight_da=mw,
                         vendor_idt_format=vendor_fmt,
-                        predicted_cns_half_life_days=half_life,
+                        chemistry_class_csf_half_life_days=half_life,
                         composite_score=round(final_score, 1),
                         penalties_and_warnings=penalties,
                     )
@@ -526,6 +585,40 @@ class ASODesigner:
 
         passed = [c for c in candidates if not c.has_quadruplex_risk and c.off_target_0_mismatch == 0 and c.composite_score >= 60.0]
 
+        # ---- specificity: the safety-critical step ----
+        # Screening is done after ranking so the cost falls only on the
+        # candidates the user will actually look at. Reading a transcriptome
+        # once and reusing it across candidates keeps a full human reference
+        # to a single pass per oligo rather than per window.
+        shortlist = (passed or candidates)[: max(top_k, 1)]
+        mm = max_mismatches if max_mismatches is not None else \
+            DEFAULT_MAX_MISMATCHES.get(mode.value, 3)
+        if transcriptome:
+            screener = SpecificityScreener(
+                max_mismatches=mm, skip_on_target_gene=target_gene)
+            for cand in shortlist:
+                cand.specificity = screener.screen_against_fasta(
+                    cand.oligo_sequence_5_to_3, transcriptome)
+                hits = cand.specificity.hits
+                if hits:
+                    worst = min(h.n_mismatches for h in hits)
+                    # An exact or near-exact off-target is disqualifying, not
+                    # a deduction: it means the oligo hits something else.
+                    penalty = {0: 80.0, 1: 60.0, 2: 30.0}.get(worst, 15.0)
+                    cand.composite_score = round(
+                        max(0.0, cand.composite_score - penalty), 1)
+                    cand.penalties_and_warnings.append(
+                        f"{len(hits)} transcriptome off-target hit(s), closest "
+                        f"at {worst} mismatch(es) "
+                        f"({hits[0].transcript_id})")
+            shortlist.sort(key=lambda c: -c.composite_score)
+        else:
+            for cand in shortlist:
+                cand.specificity = unscreened(cand.oligo_sequence_5_to_3)
+                cand.penalties_and_warnings.append(
+                    "Specificity NOT screened: no reference transcriptome "
+                    "supplied.")
+
         precedent = (
             "Nusinersen (Spinraza) / STMN2 cryptic exon exclusion series"
             if mode == ASOMode.SPLICE_SWITCH
@@ -535,7 +628,17 @@ class ASODesigner:
         caveats = [
             "Tiling predictions optimize thermodynamic and biophysical parameters; empirical in vitro potency must be confirmed in cells.",
             "Steric blocking efficacy depends on local RNA secondary structure accessibility (RBD/spliceosome binding).",
+            "Thermodynamics assume an ungapped, fully accessible target. RNA "
+            "structure, RBP occupancy and nuclear context are not modelled.",
+            "CSF half-life is a literature value for the chemistry class, "
+            "identical for every sequence; it is not a per-oligo prediction.",
         ]
+        if not transcriptome:
+            caveats.insert(0, (
+                "NO OFF-TARGET SCREEN WAS RUN. Supply --transcriptome, or "
+                "screen with BLAST/Bowtie, before treating any candidate as "
+                "usable. Off-target hybridisation is the main mechanism of "
+                "ASO toxicity."))
 
         return ASODesignResult(
             target_gene=target_gene,

@@ -67,7 +67,7 @@ def run_tests():
     check("stage 3 lead ASO has zero 0-mismatch neural off-targets",
           dossier.stage3_therapeutic_aso["off_target_0_mismatch"] == 0)
     check("stage 3 predicted CNS half-life is ~135 days",
-          dossier.stage3_therapeutic_aso["predicted_cns_half_life_days"] == 135)
+          dossier.stage3_therapeutic_aso["chemistry_class_csf_half_life_days"] == 135)
     check("stage 3 IDT format string provided",
           dossier.stage3_therapeutic_aso["vendor_idt_format"].startswith("m"))
     check("stage 4 composite rescue score > 75",
@@ -129,7 +129,30 @@ def run_tests():
           all(f"stage{i}" in str(d_dict.keys()) for i in range(1, 7)))
 
     md = nof1_dossier_to_markdown(dossier)
-    check("markdown dossier contains IND title", "Translational Preclinical IND Dossier" in md)
+    # The document must NOT present itself as a regulatory submission. Until
+    # v0.8.1 it was titled "Translational Preclinical IND Dossier" and stated
+    # that in vitro and whole-transcriptome studies had been performed when
+    # none had. A reader could have mistaken it for a completed package.
+    check("dossier is NOT titled as an IND submission",
+          "IND Dossier" not in md)
+    check("dossier is marked a computational draft",
+          "COMPUTATIONAL DRAFT - NOT A REGULATORY SUBMISSION" in md)
+    check("dossier states no experiment was performed",
+          "No experiment described here has been performed" in md)
+    check("dossier does not assert in vitro target engagement was shown",
+          "Demonstrates complete steric exclusion" not in md)
+    check("dossier does not call the sequence orderable",
+          "Orderable IDT Vendor Sequence" not in md)
+    check("dossier does not assert clinical viability CONFIRMED",
+          "**Clinical Viability**: CONFIRMED" not in md)
+    check("simulated biomarker trajectory is not labelled in vivo",
+          "Longitudinal In Vivo Suppression" not in md)
+    check("dossier does not claim a whole-transcriptome screen was run",
+          "Whole-transcriptome interrogation" not in md)
+    check("dossier reports real specificity status",
+          "NOT PERFORMED" in md or "transcripts" in md)
+    check("half-life is labelled a class value, not a prediction",
+          "chemistry-class" in md.lower() or "not measured" in md.lower())
     check("markdown dossier contains lead oligo sequence", dossier.stage3_therapeutic_aso["lead_oligo_sequence"] in md)
     check("markdown dossier contains vendor IDT format", dossier.stage3_therapeutic_aso["vendor_idt_format"] in md)
     check("markdown dossier contains protocol SHA-256 digest", dossier.stage6_preclinical_protocol["protocol_sha256"] in md)
@@ -141,7 +164,16 @@ def run_tests():
     print("\n[n-of-1: fda pre-ind package]")
     from synaptik.nof1.pipeline import generate_fda_pre_ind_package
     preind_doc = generate_fda_pre_ind_package(dossier)
-    check("pre-ind contains 21 CFR Part 312 reference", "21 CFR Part 312" in preind_doc)
+    check("outline does NOT claim 21 CFR Part 312 compliance",
+          "21 CFR Part 312 compliant" not in preind_doc)
+    check("outline does not name a regulatory Sponsor",
+          "**Sponsor / Lead Investigator**" not in preind_doc)
+    check("outline is marked a draft planning document",
+          "DRAFT PLANNING OUTLINE" in preind_doc)
+    check("outline carries the no-experiment banner",
+          "No experiment described here has been performed" in preind_doc)
+    check("CpG count is computed, not asserted absent",
+          "CpG / TLR9 Motif Count" in preind_doc)
     check("pre-ind contains Type B meeting request", "Type B" in preind_doc)
     check("pre-ind contains CMC specifications", "Chemical, Manufacturing, and Controls" in preind_doc)
     check("pre-ind contains Specific Questions for FDA", "Specific Questions for the Food and Drug Administration" in preind_doc)

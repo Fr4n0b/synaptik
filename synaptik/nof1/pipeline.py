@@ -28,7 +28,7 @@ from ..cli.commands.cite import (
     get_bibtex,
     get_nature,
 )
-from ..drug.aso import ASODesigner, ASOMode
+from ..drug.aso import ASODesigner, ASOMode, count_cpg_motifs
 from ..protocol.registry import create_preclinical_protocol
 from ..schema import Direction
 from ..simulate.counterfactual import (
@@ -172,8 +172,14 @@ class Nof1Pipeline:
             "biophysical_liabilities_cleared": not (lead_aso.has_quadruplex_risk or lead_aso.has_poly_u_risk or lead_aso.hairpin_delta_g <= -3.0),
             "off_target_0_mismatch": lead_aso.off_target_0_mismatch,
             "off_target_1_mismatch": lead_aso.off_target_1_mismatch,
+            "specificity_status": lead_aso.specificity.status.value,
+            "specificity_verdict": lead_aso.specificity.verdict(),
+            "specificity_bases_searched": lead_aso.specificity.n_bases_searched,
+            "specificity_screened": lead_aso.specificity_screened,
+            "cpg_motif_count": count_cpg_motifs(
+                lead_aso.oligo_sequence_5_to_3)[0],
             "molecular_weight_da": lead_aso.molecular_weight_da,
-            "predicted_cns_half_life_days": lead_aso.predicted_cns_half_life_days,
+            "chemistry_class_csf_half_life_days": lead_aso.chemistry_class_csf_half_life_days,
             "vendor_idt_format": lead_aso.vendor_idt_format,
             "composite_score": lead_aso.composite_score,
         }
@@ -320,8 +326,58 @@ def nof1_dossier_to_dict(dossier: Nof1Dossier) -> dict[str, Any]:
     }
 
 
+def _evidence_banner(dossier: Nof1Dossier) -> str:
+    """Banner stating what this document is, and what was never performed.
+
+    Every section below is generated from sequence arithmetic and published
+    literature. No experiment in this document has been run. Without this
+    banner the output reads as a completed preclinical package, which is the
+    specific way a document like this causes harm.
+    """
+    s3 = dossier.stage3_therapeutic_aso
+    screened = s3.get("specificity_screened", False)
+    spec_line = (
+        f"Off-target screen: {s3.get('specificity_verdict', 'unknown')}"
+        if screened else
+        "Off-target screen: **NOT PERFORMED** - no reference transcriptome "
+        "was supplied, so no specificity evidence exists for this sequence."
+    )
+    return f"""> ## COMPUTATIONAL DRAFT - NOT A REGULATORY SUBMISSION
+>
+> This document was generated automatically from sequence analysis and
+> published literature. It is a **research planning aid**: a structured list
+> of what would need to be established, not a record of anything that has
+> been established.
+>
+> **No experiment described here has been performed.** Specifically, the
+> following have **NOT** been done and must be completed, by qualified
+> investigators under the applicable regulatory and ethical approvals,
+> before any of this content is used for any purpose beyond planning:
+>
+> - In vitro confirmation of target engagement or splicing correction
+> - Transcriptome-wide off-target profiling (RNA-seq of treated cells)
+> - Any GLP toxicology study, in any species
+> - Any pharmacokinetic measurement in any organism
+> - Any regulatory review, IRB/ethics approval, or FDA interaction
+>
+> {spec_line}
+>
+> Predicted values (rescue efficiency, biomarker trajectories, half-life)
+> are model outputs under stated assumptions, not measurements.
+>
+> **Do not submit this document to a regulator**, an ethics board, a
+> clinician, or a patient or family as evidence of anything. Treating an
+> unvalidated oligonucleotide sequence as a therapeutic can cause serious
+> harm, including death.
+"""
+
+
 def nof1_dossier_to_markdown(dossier: Nof1Dossier) -> str:
-    """Format an IND-enabling translational preclinical summary dossier in Markdown."""
+    """Format a draft research-planning summary in Markdown.
+
+    Not an IND-enabling document: nothing in it has been experimentally
+    established. See _evidence_banner for what has not been performed.
+    """
     p = dossier.patient
     s1 = dossier.stage1_splice_and_mechanism
     s2 = dossier.stage2_human_concordance
@@ -331,9 +387,11 @@ def nof1_dossier_to_markdown(dossier: Nof1Dossier) -> str:
     s6 = dossier.stage6_preclinical_protocol
     c = dossier.citation
 
-    return f"""# Translational Preclinical IND Dossier: N-of-1 Therapeutic Blueprint
+    return f"""# Draft Research Plan (Computational): Candidate N-of-1 Therapeutic Hypothesis
 
-**Patient Identifier**: `{p.patient_id}`  
+{_evidence_banner(dossier)}
+
+**Case Identifier**: `{p.patient_id}`  
 **Target Gene / Variant**: `{p.target_gene}` ({p.variant_id})  
 **Disease Indication**: {s1['disease_context']}  
 **Translational Status**: **{dossier.actionability_tier.value}**  
@@ -344,7 +402,7 @@ def nof1_dossier_to_markdown(dossier: Nof1Dossier) -> str:
 {dossier.executive_verdict}
 
 - **Primary Modality**: {s1['therapeutic_modality']}
-- **Predicted Human CSF Terminal Half-Life**: ~{s3['predicted_cns_half_life_days']} days
+- **CSF Half-Life (chemistry-class literature value, not measured, not sequence-specific)**: ~{s3['chemistry_class_csf_half_life_days']} days
 - **Predicted 48-Week Plasma NfL Suppression**: -{s5['maximal_nfl_reduction_pct']:.1f}% ({s5['clinical_surrogate_milestone']})
 - **Trial Cohort Optimization**: {s5['sample_size_reduction_pct']}% reduction in required patients/arm via stratification
 
@@ -365,39 +423,40 @@ def nof1_dossier_to_markdown(dossier: Nof1Dossier) -> str:
 
 ---
 
-## 4. Lead Therapeutic ASO Candidate (Synthesis Specifications)
+## 4. Top-Ranked Candidate Sequence (UNVALIDATED - for experimental testing only)
 - **Lead Oligonucleotide (5'->3')**: `{s3['lead_oligo_sequence']}`
 - **Chemistry Architecture**: {s3['chemistry']}
 - **Duplex Melting Temperature (Tm)**: {s3['melting_temp_c']} °C
 - **Thermodynamic Stability (dG_37)**: {s3['gibbs_free_energy_37c']} kcal/mol (GC: {s3['gc_content_pct']}%)
 - **Biophysical Liabilities**: {'CLEARED (No G-quadruplex, poly-U, or stable hairpin liabilities)' if s3['biophysical_liabilities_cleared'] else 'WARNING: Liabilities detected'}
-- **Neural Off-Target Profile**: 0-mismatch: {s3['off_target_0_mismatch']}, 1-mismatch: {s3['off_target_1_mismatch']}
+- **Off-Target Screen**: {s3['specificity_verdict']}
+- **CpG / TLR9 motifs**: {s3['cpg_motif_count']} (count only; immunogenicity not tested)
 - **Molecular Weight (Na+ salt)**: {s3['molecular_weight_da']:,.1f} Da
-- **Orderable IDT Vendor Sequence**:
+- **Vendor Format** (do not order before completing the validation steps above):
   ```text
   {s3['vendor_idt_format']}
   ```
 
 ---
 
-## 5. Causal Counterfactual Transcriptomic Simulation
+## 5. Counterfactual Simulation (in silico model output - not experimental data)
 - **Simulated Intervention**: {s4['intervention']}
 - **Vector Rescue Efficiency**: {s4['rescue_efficiency_pct']:.1f}%
 - **Cosine Directional Alignment (cos theta)**: {s4['cosine_rescue_alignment']:.3f} (-1 to +1)
 - **Collateral Toxicity Index**: {s4['collateral_toxicity_index']:.2f} (0.00 = benign, 1.00 = lethal)
 - **Composite Rescue Score**: {s4['composite_rescue_score']:.1f} / 100
-- **Clinical Viability**: {'CONFIRMED' if s4['is_clinically_viable'] else 'REJECTED'}
+- **Model Verdict**: {'passes the simulation threshold' if s4['is_clinically_viable'] else 'fails the simulation threshold'} - a property of the model, not evidence of clinical viability
 
 ---
 
-## 6. Longitudinal Fluid Biomarker Trajectory (Plasma NfL)
+## 6. Simulated Biomarker Trajectory (Plasma NfL) - model projection, no patient was dosed
 - **Baseline Plasma NfL**: {s5['baseline_nfl_pg_ml']} pg/mL
 - **Progression Stratification Tier**: {s5['patient_progression_tier']}
-- **Longitudinal In Vivo Suppression**:
+- **Projected suppression under the model's assumptions**:
   - Week 12: {s5['predicted_week12_nfl']:.1f} pg/mL
   - Week 24: {s5['predicted_week24_nfl']:.1f} pg/mL
   - Week 48: {s5['predicted_week48_nfl']:.1f} pg/mL (Max reduction: -{s5['maximal_nfl_reduction_pct']:.1f}%)
-- **FDA Regulatory Surrogate Verdict**: {s5['clinical_surrogate_milestone']}
+- **Surrogate-endpoint milestone (model projection, carries no regulatory status)**: {s5['clinical_surrogate_milestone']}
 
 ---
 
@@ -425,7 +484,13 @@ Repository: {c.get('repository', '')}
 
 
 def generate_fda_pre_ind_package(dossier: Nof1Dossier) -> str:
-    """Generate an FDA CDER/CBER Type B Pre-IND Meeting Package (21 CFR Part 312 compliant)."""
+    """Generate a DRAFT outline of topics a Pre-IND discussion would cover.
+
+    This is not a Pre-IND package and is not 21 CFR compliant. A real
+    submission requires completed nonclinical studies, CMC data, and a
+    qualified regulatory sponsor; none of that is produced here. The output
+    is a checklist of what would have to be generated.
+    """
     p = dossier.patient
     s1 = dossier.stage1_splice_and_mechanism
     s2 = dossier.stage2_human_concordance
@@ -435,15 +500,21 @@ def generate_fda_pre_ind_package(dossier: Nof1Dossier) -> str:
     s6 = dossier.stage6_preclinical_protocol
     c = dossier.citation
 
-    return f"""# FDA Pre-IND Meeting Briefing Document (Type B Meeting Package)
-## Investigational New Drug (IND) Application Pre-Submission
-**Product Name**: SYN-{s1['target_gene']}-01 ({s1['therapeutic_modality']})  
-**Active Pharmaceutical Ingredient**: 18-mer Antisense Oligonucleotide (`{s3['lead_oligo_sequence']}`)  
-**Target Indication**: {s1['disease_context']} with {s1['target_gene']} Splicing Dysregulation  
-**Patient Identifier**: `{p.patient_id}`  
-**Sponsor / Lead Investigator**: {c.get('author', 'Francesco Nobile')} ({c.get('affiliation', 'Massachusetts General Hospital / Harvard Medical School')})  
-**ORCID**: [{c.get('orcid', '0009-0001-9477-3332')}]({c.get('orcid_url', 'https://orcid.org/0009-0001-9477-3332')})  
-**Regulatory Classification**: 21 CFR Part 312 / CBER Rare Disease N-of-1 Accelerated Development  
+    return f"""# DRAFT PLANNING OUTLINE: Topics for a Future Pre-IND Discussion
+
+{_evidence_banner(dossier)}
+
+> This outline is **not** a Pre-IND briefing document and makes no claim of
+> 21 CFR Part 312 compliance. It lists the evidence a sponsor would need to
+> generate. No sponsor relationship, regulatory filing, or FDA interaction is
+> created or implied by this file.
+
+**Candidate Designation (internal placeholder only)**: `{s1['target_gene']}-CAND-01`  
+**Candidate Sequence (unvalidated)**: `{s3['lead_oligo_sequence']}`  
+**Indication Under Consideration**: {s1['disease_context']} with {s1['target_gene']} splicing dysregulation  
+**Case Identifier**: `{p.patient_id}`  
+**Analysis Prepared By**: {c.get('author', 'Francesco Nobile')} ({c.get('affiliation', '')})  
+**ORCID**: [{c.get('orcid', '')}]({c.get('orcid_url', '')})  
 
 ---
 
@@ -480,18 +551,19 @@ The Sponsor is requesting a Type B Pre-IND meeting with the Division of Neurolog
 ---
 
 ### 3. Nonclinical Pharmacology Program
-1. **In Vitro Target Engagement**: Evaluated in patient-specific isogenic iPSC-derived motor neurons at DIV {p.maturity_div}. Demonstrates complete steric exclusion of the pathological cryptic splice site.
-2. **In Vivo Human Brain Concordance**: Evaluated against post-mortem snRNA-seq atlases of the human motor cortex. Target status confirmed as **{s2['concordance_status'].upper()}** in **{s2['primary_human_cell_type']}** (Evidence: {s2['evidence_source']}).
-3. **Counterfactual Transcriptomic Simulation**: Causal perturbation modeling predicts **{s4['rescue_efficiency_pct']:.1f}% transcriptomic recovery** with a cosine alignment of {s4['cosine_rescue_alignment']:.3f} and a benign collateral toxicity index of {s4['collateral_toxicity_index']:.2f}.
+1. **In Vitro Target Engagement** - *STUDY NOT PERFORMED*. Required: measure splicing correction in patient-derived and isogenic control iPSC neurons (RT-PCR and RNA-seq) at DIV {p.maturity_div}, with a dose-response and a scrambled-sequence control. No target engagement has been demonstrated.
+2. **Human Brain Expression Concordance** (literature analysis, not an experiment): published post-mortem snRNA-seq indicates **{s2['concordance_status'].upper()}** in **{s2['primary_human_cell_type']}** (source: {s2['evidence_source']}). This is a database lookup, not validation in this patient's tissue.
+3. **Counterfactual Simulation** (*in silico model output, not data*): predicts {s4['rescue_efficiency_pct']:.1f}% transcriptomic recovery, cosine alignment {s4['cosine_rescue_alignment']:.3f}, collateral index {s4['collateral_toxicity_index']:.2f}. These are simulation outputs under the model's assumptions and carry no experimental weight.
 
 ---
 
 ### 4. Nonclinical Safety, Off-Target Profiling, and Toxicology Strategy
-* **Neural Off-Target Safety Screen**: Whole-transcriptome interrogation identifies **{s3['off_target_0_mismatch']}** perfect matches (excluding on-target locus) and **{s3['off_target_1_mismatch']}** single-mismatch loci in the human neuronal transcriptome.
-* **Absence of Pro-Inflammatory Motifs**: Sequence lacks unmethylated CpG motifs known to trigger TLR9 innate immune stimulation.
+* **Off-Target Screen**: {s3['specificity_verdict']}
+  A sequence search is not a safety assessment. Transcriptome-wide RNA-seq of treated cells is required regardless of the result above.
+* **CpG / TLR9 Motif Count**: {s3['cpg_motif_count']} unmethylated CpG dinucleotide(s) in the candidate sequence. A count of zero lowers, but does not eliminate, innate-immune risk; phosphorothioate backbones are immunostimulatory independently of CpG content. *Immunogenicity testing not performed.*
 * **Planned GLP Toxicology Studies**:
   1. *Rodent 14-Day IT Tolerability*: Single and repeat intrathecal bolus dosing in wild-type rodents to establish Maximum Tolerated Dose (MTD).
-  2. *Non-Human Primate (Cynomolgus Macaque) 13-Week GLP Study*: Lumbar intrathecal administration every 4 weeks to evaluate neurohistopathology, CSF pharmacokinetics, and systemic organ toxicity. Predicted terminal CNS half-life: ~{s3['predicted_cns_half_life_days']} days.
+  2. *Non-Human Primate (Cynomolgus Macaque) 13-Week GLP Study*: Lumbar intrathecal administration every 4 weeks to evaluate neurohistopathology, CSF pharmacokinetics, and systemic organ toxicity. Literature half-life for this chemistry class: ~{s3['chemistry_class_csf_half_life_days']} days (not measured for this sequence).
 
 ---
 

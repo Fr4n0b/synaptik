@@ -56,6 +56,10 @@ echo "=== web interface HTTP endpoints suite ==="
 python3 -m tests.test_ui_endpoints
 
 echo
+echo "=== safety-claim suite (no unearned confidence in ASO/clinical output) ==="
+python3 -m tests.test_safety_claims
+
+echo
 echo "=== API contract self-test (offline) ==="
 python3 -m synaptik.ingest.contracts
 
