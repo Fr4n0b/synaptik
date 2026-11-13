@@ -517,3 +517,86 @@ def commensurable(a: str, b: str) -> bool:
     if not ta or not tb:
         return False
     return bool(ta.pool_group) and ta.pool_group == tb.pool_group
+
+
+# Canonical GO / Reactome pathway labels for every PhenotypeTerm so extracted
+# records always carry a valid pathway even when a sentence omits pathway words.
+GO_PATHWAY_LABELS: dict[str, str] = {
+    "GO:0048786": "presynaptic active zone",
+    "GO:0014069": "postsynaptic density",
+    "GO:0045202": "synapse organization",
+    "GO:0060077": "inhibitory synapse",
+    "GO:0007268": "chemical synaptic transmission",
+    "GO:0019228": "neuronal action potential",
+    "GO:0007409": "axonogenesis",
+    "GO:0048812": "neuron projection morphogenesis",
+    "GO:0048666": "neuron development",
+    "GO:0008380": "RNA splicing",
+    "GO:0006397": "mRNA processing",
+    "GO:0007005": "mitochondrion organization",
+    "GO:0006914": "autophagy",
+    "GO:0070997": "neuron death",
+    "GO:0006913": "nucleocytoplasmic transport",
+    "GO:0010467": "gene expression",
+    "GO:0019538": "protein metabolic process",
+    "GO:0030182": "neuron differentiation",
+    "R-HSA-112316": "Neuronal System",
+    "R-HSA-72163": "mRNA Splicing",
+}
+
+_PREFIX_PATHWAY_FALLBACK: dict[str, tuple[str, str]] = {
+    "SYN:": ("GO:0045202", "synapse organization"),
+    "EPHYS:": ("GO:0019228", "neuronal action potential"),
+    "MORPH:": ("GO:0048666", "neuron development"),
+    "SPL:": ("GO:0008380", "RNA splicing"),
+    "EXPR:": ("GO:0010467", "gene expression"),
+    "DIFF:": ("GO:0030182", "neuron differentiation"),
+}
+
+_TERM_SPECIFIC_PATHWAYS: dict[str, tuple[tuple[str, str], ...]] = {
+    "SYN:0004": (("GO:0045202", "synapse organization"),),
+    "SYN:0006": (("GO:0045202", "synapse organization"),),
+    "EPHYS:0002": (("GO:0007268", "chemical synaptic transmission"),),
+    "EPHYS:0003": (("GO:0060077", "inhibitory synapse"), ("GO:0007268", "chemical synaptic transmission")),
+    "EPHYS:0013": (("GO:0060077", "inhibitory synapse"), ("GO:0007268", "chemical synaptic transmission")),
+    "EPHYS:0004": (("GO:0019228", "neuronal action potential"), ("R-HSA-112316", "Neuronal System")),
+    "EPHYS:0006": (("GO:0019228", "neuronal action potential"), ("R-HSA-112316", "Neuronal System")),
+    "EPHYS:0007": (("GO:0019228", "neuronal action potential"),),
+    "EPHYS:0008": (("GO:0019228", "neuronal action potential"), ("R-HSA-112316", "Neuronal System")),
+    "MORPH:0004": (("GO:0048666", "neuron development"),),
+    "SPL:0003": (("GO:0008380", "RNA splicing"), ("R-HSA-72163", "mRNA Splicing")),
+    "SPL:0004": (("GO:0006397", "mRNA processing"),),
+    "SPL:0006": (("GO:0008380", "RNA splicing"), ("R-HSA-72163", "mRNA Splicing")),
+    "EXPR:0001": (("GO:0010467", "gene expression"),),
+    "EXPR:0002": (("GO:0019538", "protein metabolic process"),),
+    "DIFF:0002": (("GO:0030182", "neuron differentiation"),),
+    "DIFF:0003": (("GO:0030182", "neuron differentiation"),),
+}
+
+
+def canonical_pathways_for_phenotype(term_id: str | None) -> list[tuple[str, str]]:
+    """Return canonical (ontology_id, label) pairs for a phenotype term ID."""
+    if not term_id:
+        return []
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
+
+    if term_id in _TERM_SPECIFIC_PATHWAYS:
+        for pid, lbl in _TERM_SPECIFIC_PATHWAYS[term_id]:
+            if pid not in seen:
+                seen.add(pid)
+                out.append((pid, lbl))
+
+    term = BY_ID.get(term_id)
+    if term and term.go_xref:
+        for gid in term.go_xref:
+            if gid not in seen:
+                seen.add(gid)
+                out.append((gid, GO_PATHWAY_LABELS.get(gid, term.label)))
+
+    if not out:
+        for prefix, pair in _PREFIX_PATHWAY_FALLBACK.items():
+            if term_id.startswith(prefix):
+                out.append(pair)
+                break
+    return out

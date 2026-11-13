@@ -16,6 +16,7 @@ from __future__ import annotations
 import re
 
 from ..normalize.matcher import PhenotypeMatcher, classify_assay
+from ..normalize.phenotype_ontology import canonical_pathways_for_phenotype
 from ..schema import (
     CellModel,
     CellModelClass,
@@ -47,8 +48,15 @@ _DONOR_PATTERNS = [
     re.compile(
         r"\b(\d+|two|three|four|five|six|seven|eight|nine|ten)\s+"
         r"(?:independent\s+|unrelated\s+|distinct\s+|different\s+)?"
+        r"(?:[a-z0-9-]+\s+){0,2}"
         r"(?:patient|donor|als|ad|pd|hd|ftd|sma|mutant|diseased|affected|subject|individual)s?\s*"
         r"(?:ipsc\s*)?(?:cell\s*)?(?:lines?|donors?|patients?|subjects?)\b",
+        re.I,
+    ),
+    re.compile(
+        r"\b(\d+|two|three|four|five|six|seven|eight|nine|ten)\s+"
+        r"(?:independent\s+|unrelated\s+|distinct\s+|different\s+)?"
+        r"(?:[a-z0-9-]+\s+){0,2}(?:donors?|patients?|subjects?)\b",
         re.I,
     ),
     re.compile(
@@ -223,7 +231,7 @@ def extract_records_from_fulltext(
                 continue
 
             pheno = pm.match(sent)
-            if not pheno:
+            if pheno.ontology_id is None:
                 continue
 
             sent_genes = _GENE_RE.findall(sent)
@@ -235,17 +243,32 @@ def extract_records_from_fulltext(
             if not gene:
                 continue
 
-            pathway_term: NormalizedTerm | None = None
+            pathways: list[NormalizedTerm] = []
+            seen_pids: set[str] = set()
             for pat, label, go_id in _PATHWAY_HINTS:
-                if pat.search(sent):
-                    pathway_term = NormalizedTerm(
-                        raw=label,
-                        ontology_id=go_id,
-                        ontology_label=label,
-                        mapping_confidence=0.80,
-                        mapping_method="fulltext_keyword",
+                if pat.search(sent) and go_id not in seen_pids:
+                    seen_pids.add(go_id)
+                    pathways.append(
+                        NormalizedTerm(
+                            raw=label,
+                            ontology_id=go_id,
+                            ontology_label=label,
+                            mapping_confidence=0.80,
+                            mapping_method="fulltext_keyword",
+                        )
                     )
-                    break
+            for go_id, label in canonical_pathways_for_phenotype(pheno.ontology_id):
+                if go_id not in seen_pids:
+                    seen_pids.add(go_id)
+                    pathways.append(
+                        NormalizedTerm(
+                            raw=label,
+                            ontology_id=go_id,
+                            ontology_label=label,
+                            mapping_confidence=0.85,
+                            mapping_method="phenotype_go_xref",
+                        )
+                    )
 
             key = (gene, pheno.key(), direction.value)
             if key in seen_keys:
@@ -256,7 +279,9 @@ def extract_records_from_fulltext(
             sent_div_m = _DIV_PATTERNS[0].search(sent) or _DIV_PATTERNS[1].search(sent)
             div = int(sent_div_m.group(1)) if sent_div_m else design["days_in_vitro"]
 
-            assay = classify_assay(sent)
+            assay_cls, _ = classify_assay(sent)
+            if assay_cls.value == "other" and methods_txt:
+                assay_cls, _ = classify_assay(methods_txt[:3000])
             ptype = _infer_perturbation_type(sent)
             rec_id = f"{source.source_id}:{sec_name}:{idx}"
 
@@ -276,23 +301,24 @@ def extract_records_from_fulltext(
                         ptype=ptype,
                         target=NormalizedTerm(
                             raw=gene,
+                            ontology_id=gene,
                             ontology_label=gene,
                             mapping_confidence=0.90,
                             mapping_method="gene_symbol",
                         ),
                     ),
-                    assay=assay,
+                    assay_class=assay_cls,
+                    evidence_type=EvidenceType.DIRECT_MEASUREMENT,
                     outcome=Outcome(
                         phenotype=pheno,
-                        pathway=pathway_term,
                         direction=direction,
-                        evidence_type=EvidenceType.DIRECT_MEASUREMENT,
                     ),
+                    pathways=pathways,
                     provenance=Provenance(
                         section=sec_name,
                         quote=sent[:200],
-                        extractor_version="fulltext-jats-v1",
-                        extraction_confidence=0.80 if sec_name == "results" else 0.72,
+                        extractor_version="fulltext-jats-v2",
+                        extraction_confidence=0.82 if sec_name == "results" else 0.74,
                     ),
                 )
             )

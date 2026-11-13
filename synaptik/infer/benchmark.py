@@ -63,6 +63,8 @@ class BenchmarkCase:
     replicated: bool
     contradicted: bool
     n_new_labs: int
+    gene: str | None = None
+    features: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
@@ -199,6 +201,148 @@ class RetrospectiveBenchmark:
             for assoc in engine.associate(fg, before):
                 res.cases.append(self._evaluate(ph, assoc, fg, future))
 
+        self._score(res)
+        return res
+
+    @staticmethod
+    def _gene_key(r: ExperimentRecord) -> str | None:
+        if r.perturbation.target is None:
+            return None
+        g = (r.perturbation.target.ontology_id or r.perturbation.target.raw or "").strip().upper()
+        return g or None
+
+    @staticmethod
+    def _gp_features(
+        fg: list[ExperimentRecord],
+        weighter: EvidenceWeighter,
+    ) -> tuple[dict[str, float], str, set[str]]:
+        """Extract evidence-structure features for a (gene, phenotype) claim."""
+        prior_labs = {r.source.lab_id for r in fg if r.source.lab_id}
+        positives = [r for r in fg if not r.is_negative_result()]
+        negatives = [r for r in fg if r.is_negative_result()]
+        support = positives or fg
+
+        inc_w = sum(weighter.weight(r).composite for r in positives if r.outcome.direction == Direction.INCREASE)
+        dec_w = sum(weighter.weight(r).composite for r in positives if r.outcome.direction == Direction.DECREASE)
+        dominant = Direction.INCREASE.value if inc_w >= dec_w else Direction.DECREASE.value
+
+        weights = [weighter.weight(r).composite for r in support]
+        mean_w = sum(weights) / max(len(weights), 1)
+        donors = [r.cell_model.n_donor_lines for r in fg if r.cell_model.n_donor_lines is not None]
+        clones = [r.cell_model.n_clones for r in fg if r.cell_model.n_clones is not None]
+        iso_frac = sum(1 for r in fg if r.cell_model.is_isogenic_pair is True) / len(fg)
+        assay_groups = {r.orthogonality_group() for r in fg if r.orthogonality_group() != "other"}
+        assay_div = len(assay_groups) if assay_groups else len({r.assay_class.value for r in fg})
+        null_ratio = len(negatives) / len(fg)
+        dir_cons = max(inc_w, dec_w) / max(inc_w + dec_w, 1e-9) if positives else 0.0
+
+        feats = {
+            "n_labs": float(len(prior_labs)),
+            "n_donor_lines": float(max(donors) if donors else 0),
+            "n_clones": float(max(clones) if clones else 0),
+            "is_isogenic_pair": float(iso_frac),
+            "assay_diversity": float(assay_div),
+            "null_ratio": float(null_ratio),
+            "mean_weight": float(mean_w),
+            "direction_consistency": float(dir_cons),
+            "n_records": float(len(fg)),
+        }
+        return feats, dominant, prior_labs
+
+    def run_gene_phenotype(
+        self,
+        records: list[ExperimentRecord],
+        cutoff_year: int,
+        min_records: int = 2,
+    ) -> BenchmarkResult:
+        """Evaluate temporal replication at the (gene, phenotype) claim level."""
+        res = BenchmarkResult(cutoff_year=cutoff_year)
+        dated = [r for r in records if r.source.year]
+        before = [r for r in dated if r.source.year <= cutoff_year]
+        after = [r for r in dated if r.source.year > cutoff_year]
+        res.n_records_before, res.n_records_after = len(before), len(after)
+        if not before or not after:
+            res.verdict = "Cannot run: the cutoff leaves no records on one side."
+            return res
+
+        weighter = self._weighter or EvidenceWeighter(current_year=cutoff_year)
+        before_by_gp: dict[tuple[str, str], list[ExperimentRecord]] = defaultdict(list)
+        after_by_gp: dict[tuple[str, str], list[ExperimentRecord]] = defaultdict(list)
+        gene_counts: dict[str, int] = defaultdict(int)
+        pheno_counts: dict[str, int] = defaultdict(int)
+
+        for r in before:
+            g = self._gene_key(r)
+            ph = r.outcome.phenotype.key()
+            if g:
+                before_by_gp[(g, ph)].append(r)
+                gene_counts[g] += 1
+            pheno_counts[ph] += 1
+        for r in after:
+            g = self._gene_key(r)
+            if g:
+                after_by_gp[(g, r.outcome.phenotype.key())].append(r)
+
+        n_before = len(before)
+        seen_phenos: set[str] = set()
+        for (g, ph), fg in before_by_gp.items():
+            if len(fg) < min_records:
+                continue
+            future = after_by_gp.get((g, ph))
+            if not future:
+                continue
+            seen_phenos.add(ph)
+
+            feats, dominant, prior_labs = self._gp_features(fg, weighter)
+            a = len(fg)
+            b = max(0, gene_counts[g] - a)
+            c = max(0, pheno_counts[ph] - a)
+            d = max(0, n_before - a - b - c)
+            odds, p_val = stats.fisher_exact([[a, b], [c, d]], alternative="greater")
+
+            confirming, contradicting = set(), set()
+            for r in future:
+                lab = r.source.lab_id
+                if not lab or lab in prior_labs or r.source.is_retracted:
+                    continue
+                dv = r.outcome.direction.value
+                if r.is_negative_result():
+                    contradicting.add(lab)
+                elif dv == dominant:
+                    confirming.add(lab)
+                elif dv in (Direction.INCREASE.value, Direction.DECREASE.value):
+                    contradicting.add(lab)
+
+            rank_score = weighter.score_claim_features(feats)
+            n_labs = int(feats["n_labs"])
+            if n_labs >= 3 and feats["assay_diversity"] >= 2 and feats["null_ratio"] < 0.25:
+                tier = "strong"
+            elif n_labs >= 2:
+                tier = "moderate"
+            elif n_labs == 1:
+                tier = "single-lab"
+            else:
+                tier = "insufficient"
+
+            res.cases.append(
+                BenchmarkCase(
+                    phenotype_key=ph,
+                    pathway_label=f"{g} -> {fg[0].outcome.phenotype.ontology_label or ph}",
+                    tier=tier,
+                    rank_score=rank_score,
+                    enrichment=float(odds) if math.isfinite(odds) else 100.0,
+                    p_value=float(p_val),
+                    n_records=len(fg),
+                    n_labs_before=n_labs,
+                    replicated=bool(confirming),
+                    contradicted=bool(contradicting) and not confirming,
+                    n_new_labs=len(confirming),
+                    gene=g,
+                    features=feats,
+                )
+            )
+
+        res.n_phenotypes = len(seen_phenos)
         self._score(res)
         return res
 

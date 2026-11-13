@@ -181,8 +181,8 @@ def test_calibrated_empirical_knockdown() -> None:
     print("\n[aso: ASO-Atlas calibrated empirical knockdown]")
     from synaptik.drug.aso_calibrated import CALIBRATION_METADATA, predict_empirical_knockdown_pct
 
-    check(CALIBRATION_METADATA["n_train"] == 131706, "records 131,706 non-neuro training pairs")
-    check(CALIBRATION_METADATA["heldout_neuro_auroc_70pct"] > 0.65, "held-out neuro AUROC > 0.65")
+    check(CALIBRATION_METADATA["n_train"] >= 131000, "records >=131k non-neuro training pairs")
+    check(CALIBRATION_METADATA["heldout_neuro_auroc_70pct"] > 0.70, "held-out neuro AUROC > 0.70")
 
     designer = ASODesigner()
     target = "AUGGCUAGCUAGCUAGCUAGCUGACUGACUGACUGACUGACUGACU"

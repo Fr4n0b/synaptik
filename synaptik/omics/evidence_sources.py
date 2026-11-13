@@ -152,7 +152,7 @@ class GeneConstraint:
 
 
 GNOMAD_QUERY = """
-query GeneConstraint($symbol: String!, $dataset: DatasetId!) {
+query GeneConstraint($symbol: String!) {
   gene(gene_symbol: $symbol, reference_genome: GRCh38) {
     gene_id
     symbol
@@ -180,8 +180,7 @@ class GnomADClient:
         out = GeneConstraint(gene_symbol=gene_symbol)
         payload = {
             "query": GNOMAD_QUERY,
-            "variables": {"symbol": gene_symbol.upper(),
-                          "dataset": "gnomad_r4"},
+            "variables": {"symbol": gene_symbol.upper()},
         }
         data = self._post(payload)
         if not data:

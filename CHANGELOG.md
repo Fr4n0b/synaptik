@@ -17,14 +17,18 @@ All notable changes to SYNAPTIK are recorded here.
 - **Concurrent Rate-Limited Literature Harvesting & Preprint Weighting (`synaptik/ingest/`)**:
   - Thread-safe `PoliteSession` adhering to NCBI/EBI limits, plus bioRxiv/medRxiv preprint harvesting with explicit 20% discount weighting.
 - **REST API Endpoints**: Added `/api/biophysics`, `/api/twin`, `/api/clinical/allometry`, `/api/clinical/pkpd`, `/api/clinical/escalate`, and `/api/clinical/protocol`.
-- **Empirical ASO Potency Calibration (`synaptik/drug/aso_calibrated.py`, `aso_mlp_v2.json`)**:
-  - 96-feature positional, regional thermodynamic (5'-wing, gap, 3'-wing), dinucleotide, and RNase H1 motif MLP trained on 131,566 non-neuro gapmers (327 genes) from ASO Atlas and evaluated on 25,130 held-out neurogenetics gapmers across 12 genes (Spearman $\rho = 0.3763$, ROC-AUC $= 0.6929$, Top-5 $= 0.367$ vs. uncalibrated $\rho = 0.1652$, ROC-AUC $= 0.5623$). External zero-shot validation on `Master_ASO_KD_clean` ($n=19$, $\rho = 0.2698$) and `wetlab_KD` ($n=8$, $\rho = 0.4286$).
+- **Empirical ASO Potency Calibration v3 (`synaptik/drug/aso_calibrated.py`, `aso_mlp_v3.json`)**:
+  - Mapped `79,687` ASO Atlas gapmers onto Ensembl GRCh38 cDNA $\pm 50\text{ nt}$ flanking sequences; trained a 162-feature target-accessibility ($\Delta G_{\text{open}}$, stem-loop pairing probability, proximal AU) + 20-position MLP on `133,753` non-neuro gapmers (`327` genes) and evaluated on `25,839` held-out neurogenetics gapmers across 12 genes (**Spearman $\rho = 0.4112$, ROC-AUC $= 0.7146$**, breaking the 0.70 ceiling vs. v2 `0.6929` and uncalibrated `0.5623`).
+- **Temporal Literature Replication Calibration (`synaptik/infer/weighting.py`, `synaptik/infer/benchmark.py`, `synaptik/normalize/phenotype_ontology.py`)**:
+  - Added `canonical_pathways_for_phenotype()` mapping every `PhenotypeTerm` to canonical GO/Reactome pathways and added `(gene, phenotype)`-level replication tracking (`RetrospectiveBenchmark.run_gene_phenotype()`).
+  - Harvested `1,714` OA Europe PMC full-text iPSC-neuron papers (2013–2025; `2,734` records, `392` labs) and calibrated `EvidenceWeighter.score_claim_features()` via 2018–2021 temporal CV (`447` claims), achieving out-of-sample Cutoff 2022 **AUROC $= 0.7129$** (vs. `0.3671` enrichment, `0.4103` p-value).
 - **MFASS + Neuronal RBP Splice Calibration (`synaptik/sequence/splice.py`, `splice_mlp_v2.json`) & TDP-43 Cryptic Exon Benchmark (`synaptik/sequence/benchmark_cryptic.py`)**:
   - 18-feature MLP integrating PWM donor/acceptor deltas, RESCUE-ESE/FAS-ESS hexamers, and neuronal RBP motifs (`TDP-43`, `PTBP1`, `RBFOX`, `NOVA`, branchpoint, PPT) validated via 5-fold exon-grouped CV across 29,367 MFASS mutant SNVs (2,247 exons): AUROC $= 0.7770$, AUPRC $= 0.4961$ (4.12x baseline).
   - 6-locus TDP-43 cryptic exon benchmark (`STMN2`, `UNC13A`, `KALRN`, `RANBP1`, `SYT7`, `ATG4B`): 6/6 cryptic splice events detected, 5/6 top-1 cryptic-junction ASO overlap.
-- **Full-Text JATS XML Rigor Extractor (`synaptik/extract/fulltext.py`) & Turnkey Lab Audit (`synaptik audit`)**:
-  - Extracts `n_donor_lines`, `n_clones`, `is_isogenic_pair`, `days_in_vitro`, `CellModelClass`, `PerturbationType`, and `Direction.NO_CHANGE` null results from Europe PMC JATS XML sections (79.41x record yield vs. abstracts across 227 live OA papers).
-  - Added `synaptik audit --gene <GENE>` for PI-ready Markdown/JSON evidence and ASO dossiers.
+- **Full-Text JATS XML Rigor Extractor (`synaptik/extract/fulltext.py`), Gold-Standard Extraction Benchmark (`synaptik/extract/benchmark_extraction.py`), & Turnkey Live Lab Audit (`synaptik audit --live`)**:
+  - Extracts `n_donor_lines`, `n_clones`, `is_isogenic_pair`, `days_in_vitro`, `CellModelClass`, `PerturbationType`, and `Direction.NO_CHANGE` null results from Europe PMC JATS XML sections.
+  - `synaptik benchmark --extraction`: evaluates 16 curated iPSC-neuron cases (F1 = `1.000` for `n_donor_lines`, `n_clones`, `is_isogenic_pair`, `days_in_vitro`, `no_change_null`; F1 = `0.933` for `gene` & `direction`).
+  - Added `synaptik audit --live --gene <GENE>` to fetch OA Europe PMC full-text papers on the fly and reconcile against gnomAD (fixed GraphQL `$dataset` variable HTTP 400), ClinVar, Expression, and DepMap.
 
 ### Fixed & Scientifically Verified
 - **Europe PMC `fullTextXML` HTTP 406 Fix (`synaptik/ingest/http.py`)**: Changed `PoliteSession` default `Accept` header from `application/json` to `*/*`, restoring 100% JATS XML full-text retrieval.

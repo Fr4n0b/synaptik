@@ -630,6 +630,8 @@ class ASODesigner:
                 emp_kd = (
                     predict_empirical_knockdown_pct(
                         oligo, dg37, tm, hairpin_dg, dimer_score, cpg_count,
+                        flank_5p=clean_target[max(0, i - 50) : i],
+                        flank_3p=clean_target[i + w_len : i + w_len + 50],
                     )
                     if mode == ASOMode.GAPMER
                     else None
