@@ -84,6 +84,8 @@ class PathwayAssociation:
     n_labs: int = 0
     n_ortho_groups: int = 0
     n_background_records: int = 0
+    max_donor_lines: int = 0
+    max_clones: int = 0
 
     # robustness
     leave_one_lab_out_enrichment: float | None = None
@@ -155,15 +157,28 @@ class PathwayAssociation:
             return "moderate"
         if self.n_labs >= 2:
             return "weak"
+        if self.max_donor_lines >= 2 or self.max_clones >= 3:
+            return "pioneering-multi-line"
         return "single-lab"
 
     def caveats(self) -> list[str]:
         """Human-readable warnings. Shown next to every result."""
         out = []
         if self.n_labs < 2:
-            out.append(
-                "All evidence comes from one research group -- not independently replicated."
-            )
+            if self.max_donor_lines >= 2 or self.max_clones >= 3:
+                out.append(
+                    "All evidence comes from one research group, though supported by "
+                    "multiple independent iPSC donor lines/clones -- not yet independently "
+                    "replicated by another lab."
+                )
+            else:
+                out.append(
+                    "All evidence comes from one research group -- not independently replicated."
+                )
+                if self.max_donor_lines == 1 and self.max_clones == 1:
+                    out.append(
+                        "Single-line/single-clone iPSC design -- high clonal variability risk."
+                    )
         if self.n_ortho_groups < 2:
             out.append(
                 "All evidence uses one assay family -- may reflect a methodological artifact."
@@ -319,6 +334,10 @@ class AssociationEngine:
         a.n_labs = len(set(labs))
         a.n_ortho_groups = len({r.orthogonality_group() for r in recs})
         a.n_background_records = bg_hits
+        donors = [r.cell_model.n_donor_lines for r in recs if r.cell_model.n_donor_lines is not None]
+        clones = [r.cell_model.n_clones for r in recs if r.cell_model.n_clones is not None]
+        a.max_donor_lines = max(donors) if donors else 0
+        a.max_clones = max(clones) if clones else 0
         a.n_negative_records = len(negatives)
         a.negative_fraction = len(negatives) / len(recs) if recs else 0.0
 

@@ -109,6 +109,23 @@ class EvidenceWeighter:
         if rec.cell_model.is_isogenic_pair:
             design *= 1.15  # isogenic controls are the gold standard here
             b.notes.append("isogenic")
+        n_donors = rec.cell_model.n_donor_lines
+        n_clones = rec.cell_model.n_clones
+        if n_donors is not None:
+            if n_donors >= 3:
+                design *= 1.25
+                b.notes.append(f"{n_donors} donor lines")
+            elif n_donors == 2:
+                design *= 1.12
+                b.notes.append("2 donor lines")
+        if n_clones is not None:
+            if n_clones >= 3:
+                design *= 1.15
+                b.notes.append(f"{n_clones} clones")
+            elif n_clones == 1 and (n_donors is None or n_donors == 1):
+                # Single-clone iPSC studies are vulnerable to clone-to-clone drift
+                design *= 0.80
+                b.notes.append("single-clone (clonal drift risk)")
         n = rec.outcome.n_biological_replicates
         if n is None:
             design *= 0.85

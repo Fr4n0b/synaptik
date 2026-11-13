@@ -181,6 +181,16 @@ class CellModel(BaseModel):
     coculture: str | None = None  # "mouse astrocytes", "none"
     genetic_background: str | None = None  # cell line ID if stated
     is_isogenic_pair: bool | None = None
+    n_donor_lines: int | None = Field(
+        default=None,
+        ge=1,
+        description="Number of distinct donor/patient iPSC lines tested per genotype.",
+    )
+    n_clones: int | None = Field(
+        default=None,
+        ge=1,
+        description="Number of independent iPSC clones per genotype (mitigates clonal drift).",
+    )
 
     def maturity_bin(self) -> str:
         """Coarse maturity bucket -- synaptic phenotypes are DIV-sensitive.
