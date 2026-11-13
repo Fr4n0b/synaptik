@@ -129,9 +129,9 @@ done
 echo
 echo "=== standalone CLI smoke tests (biophysics, twin, clinical, data) ==="
 for cmd in \
-  "biophysics open --sequence TTCTGTAACAGTTTTTGTTTTTTCAGGTGAGTATTCAGGT --target-start 18 --target-end 36" \
+  "biophysics open --sequence TTCTGTAACAGTTTTTGTTTTTTCAGGTGAGTATTCAGGT --oligo-start 18 --oligo-len 18" \
   "twin simulate --age 56 --site bulbar --duration 12 --alsfrs 38 --twins 100 --seed 42" \
-  "clinical allometry --noael-mg 5.0 --cohort adult --acknowledge-not-clinical" \
+  "clinical allometry --noael-mg 5.0" \
   "data --help"
 do
   eval "python3 -m synaptik.cli.main $cmd" > /dev/null 2>&1 \
