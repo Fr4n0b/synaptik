@@ -14,10 +14,10 @@ Integrates:
   * 2'-MOE and phosphorothioate (PS) thermal and pharmacokinetic adjustments.
   * Secondary structure & biophysical liability filters (G-quadruplex runs,
     poly-T/U tracts, self-hairpins, and 3'-end self-dimerization).
-  * Whole-neural-transcriptome off-target selectivity screening against core
-    housekeeping and neuronal genes.
+  * Optional whole-transcriptome off-target selectivity screening via
+    `synaptik.drug.specificity` (returns NOT_SCREENED when no FASTA is supplied).
   * Vendor-ready ordering specifications (IDT format, molecular weight,
-    extinction coefficient at 260nm, and predicted human CSF half-life).
+    extinction coefficient at 260nm, and chemistry-class CSF half-life).
 """
 
 from __future__ import annotations
@@ -145,14 +145,19 @@ def compute_thermodynamics(
     oligo_molar: float = 2.5e-7,
     moe_shift_per_nt: float = 1.4,
     moe_dg_per_nt: float = -0.16,
+    chemistry: ASOChemistry | None = None,
 ) -> tuple[float, float, float, float]:
     """Calculate nearest-neighbor thermodynamics for ASO duplex.
 
     Applies nearest-neighbor parameters for RNA/DNA hybrid duplexes
-    (Sugimoto et al. Biochemistry 1995, 34:11211-11216) with empirical 2'-MOE
-    thermal (+1.4 C/nt) and free-energy (-0.16 kcal/mol/nt) stabilization
-    benchmarked against clinical Nusinersen (Hua et al. Am J Hum Genet 2008,
-    Freier & Altmann Nucleic Acids Res 1997, Geary et al. 2001).
+    (Sugimoto et al. Biochemistry 1995, 34:11211-11216) with empirical
+    backbone/sugar stabilization:
+      - Uniform 2'-MOE/PS (default / MOE_PS): +1.4 C/nt, -0.16 kcal/mol/nt
+        across all nucleotides (benchmarked against Nusinersen).
+      - 5-10-5 2'-MOE/DNA/PS gapmer (GAPMER_5_10_5): 2'-MOE stabilization
+        applied only to the 10 wing nucleotides (5' and 3' 5-nt wings); the
+        central DNA/PS gap has no 2'-MOE stabilization.
+      - PMO (neutral phosphorodiamidate morpholino): +0.5 C/nt, -0.05 kcal/mol/nt.
 
     Returns:
         (delta_h_kcal_mol, delta_s_cal_mol_k, delta_g_37_kcal_mol, tm_celsius)
@@ -173,9 +178,22 @@ def compute_thermodynamics(
         dh += h
         ds += ent
 
-    # Delta G at 37 C (310.15 K) with 2'-MOE stabilization (~ -0.16 kcal/mol per nt)
+    if chemistry == ASOChemistry.GAPMER_5_10_5:
+        n_mod = min(n, 10)  # Two 5-nt 2'-MOE wings; central 10-nt DNA gap
+        shift_per_nt = moe_shift_per_nt
+        dg_per_nt = moe_dg_per_nt
+    elif chemistry == ASOChemistry.PMO:
+        n_mod = n
+        shift_per_nt = 0.5
+        dg_per_nt = -0.05
+    else:
+        n_mod = n
+        shift_per_nt = moe_shift_per_nt
+        dg_per_nt = moe_dg_per_nt
+
+    # Delta G at 37 C (310.15 K) with chemistry-specific stabilization
     dg37_base = dh - 310.15 * (ds / 1000.0)
-    dg37_moe = dg37_base + (n * moe_dg_per_nt)
+    dg37_moe = dg37_base + (n_mod * dg_per_nt)
 
     # Tm calculation with SantaLucia (1998) salt adjustment
     # R = 1.9872 cal/(mol*K)
@@ -184,8 +202,7 @@ def compute_thermodynamics(
         tm_1m = (dh * 1000.0) / (ds + r_const * math.log(oligo_molar / 4.0)) - 273.15
         salt_correction = 16.6 * math.log10(max(na_molar, 1e-4))
         tm_base = tm_1m + salt_correction
-        # 2'-MOE modification thermal stabilization bonus (~1.4 C per nucleotide)
-        tm_moe = tm_base + (n * moe_shift_per_nt)
+        tm_moe = tm_base + (n_mod * shift_per_nt)
     except (ValueError, ZeroDivisionError):
         tm_moe = 55.0
 
@@ -501,7 +518,7 @@ class ASODesigner:
 
                 # Biophysical properties
                 gc = _gc_content(oligo)
-                dh, ds, dg37, tm = compute_thermodynamics(oligo, sub_target)
+                dh, ds, dg37, tm = compute_thermodynamics(oligo, sub_target, chemistry=chemistry)
 
                 has_quad = bool(re.search(r"G{4,}", oligo))
                 has_poly_u = bool(re.search(r"[TU]{4,}", oligo))

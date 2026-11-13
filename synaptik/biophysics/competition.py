@@ -217,7 +217,7 @@ def compute_steric_displacement(
     if oligo_conc_nm <= 0.0 or competitor_conc_nm < 0.0:
         raise ValueError("Concentrations must be positive")
 
-    key = competitor_name.strip().lower()
+    key = competitor_name.strip().lower().replace("-", "")
     if key not in COMPETITOR_KD_NM:
         raise ValueError(f"Unknown competitor '{competitor_name}'. Supported: {sorted(COMPETITOR_KD_NM)}")
 

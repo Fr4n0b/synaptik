@@ -131,7 +131,7 @@ class SpecificityResult:
 
     @property
     def screened(self) -> bool:
-        return self.status is not ScreenStatus.TRANSCRIPTOME
+        return self.status is ScreenStatus.TRANSCRIPTOME
 
     def counts_by_mismatch(self) -> dict[int, int]:
         out: dict[int, int] = defaultdict(int)

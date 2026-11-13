@@ -13,30 +13,40 @@ REPO_URL = "https://github.com/Fr4n0b/synaptik"
 YEAR = "2026"
 
 
-def get_bibtex(version: str = "0.8.0") -> str:
+def _resolve_version(version: str | None) -> str:
+    if version is not None:
+        return version
+    from ... import __version__
+    return __version__
+
+
+def get_bibtex(version: str | None = None) -> str:
+    v = _resolve_version(version)
     return f"""@software{{nobile{YEAR}synaptik,
   author       = {{Nobile, Francesco}},
   title        = {{{{SYNAPTIK: Evidence-structure analysis for iPSC-neuron research}}}},
   year         = {{{YEAR}}},
-  version      = {{{version}}},
+  version      = {{{v}}},
   url          = {{{REPO_URL}}},
   note         = {{ORCID: {ORCID_URL}}},
   organization = {{Center for Genomic Medicine, Massachusetts General Hospital / Harvard Medical School}}
 }}"""
 
 
-def get_apa(version: str = "0.8.0") -> str:
+def get_apa(version: str | None = None) -> str:
+    v = _resolve_version(version)
     return (
         f"Nobile, F. ({YEAR}). SYNAPTIK: Evidence-structure analysis for iPSC-neuron research "
-        f"(Version {version}). Massachusetts General Hospital / Harvard Medical School; University of Pavia. "
+        f"(Version {v}). Massachusetts General Hospital / Harvard Medical School; University of Pavia. "
         f"{REPO_URL}. ORCID: {ORCID_URL}."
     )
 
 
-def get_nature(version: str = "0.8.0") -> str:
+def get_nature(version: str | None = None) -> str:
+    v = _resolve_version(version)
     return (
         f"Nobile F. SYNAPTIK: Evidence-structure analysis for iPSC-neuron research. "
-        f"v{version} ({YEAR}). {REPO_URL} (ORCID: {ORCID})."
+        f"v{v} ({YEAR}). {REPO_URL} (ORCID: {ORCID})."
     )
 
 

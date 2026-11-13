@@ -285,6 +285,26 @@ def test_clinical_allometry_guardrail() -> None:
           "serialized dictionary exposes research planning disclaimer")
 
 
+def test_specificity_screened_property_and_gapmer_thermo() -> None:
+    print("\n[specificity & chemistry: .screened property and gapmer 2'-MOE wing count]")
+    from synaptik.drug.aso import ASOChemistry, compute_thermodynamics
+    from synaptik.drug.specificity import ScreenStatus, SpecificityResult, unscreened
+
+    u = unscreened("TCACTTTCATAATGCTGG")
+    check(u.screened is False, "unscreened SpecificityResult.screened must be False")
+    p = SpecificityResult(status=ScreenStatus.PANEL, oligo="TCACTTTCATAATGCTGG")
+    check(p.screened is False, "PANEL-only SpecificityResult.screened must be False")
+    t = SpecificityResult(status=ScreenStatus.TRANSCRIPTOME, oligo="TCACTTTCATAATGCTGG")
+    check(t.screened is True, "TRANSCRIPTOME SpecificityResult.screened must be True")
+
+    # 20-mer 5-10-5 gapmer has 10 MOE wing nt, so Tm < uniform 20-mer MOE/PS
+    tofersen = "CAGGATACATTTCTACAGCT"
+    _, _, dg_gap, tm_gap = compute_thermodynamics(tofersen, chemistry=ASOChemistry.GAPMER_5_10_5)
+    _, _, dg_moe, tm_moe = compute_thermodynamics(tofersen, chemistry=ASOChemistry.MOE_PS)
+    check(tm_gap < tm_moe, f"5-10-5 gapmer Tm ({tm_gap}C) < uniform 2'-MOE Tm ({tm_moe}C)")
+    check(dg_gap > dg_moe, f"5-10-5 gapmer dG37 ({dg_gap}) less negative than uniform 2'-MOE ({dg_moe})")
+
+
 def main() -> int:
     print("=" * 70)
     print("SYNAPTIK safety-claim regression suite")
@@ -299,6 +319,7 @@ def main() -> int:
     test_documents_make_no_false_experimental_claims()
     test_specificity_status_reaches_the_documents()
     test_clinical_allometry_guardrail()
+    test_specificity_screened_property_and_gapmer_thermo()
     print("\n" + "=" * 70)
     if FAILURES:
         print(f"{len(FAILURES)} FAILURE(S):")
