@@ -534,7 +534,7 @@ def test_heuristic_abstract_extractor() -> None:
     )
     recs = extract_records_from_abstract(src, abstract)
     check(len(recs) >= 1, f"extracted sentence-grounded records from abstract (got {len(recs)})")
-    check(any(r.perturbation.target and r.perturbation.target.canonical_label == "TARDBP" and r.outcome.direction == Direction.DECREASE for r in recs),
+    check(any(r.perturbation.target and r.perturbation.target.ontology_label == "TARDBP" and r.outcome.direction == Direction.DECREASE for r in recs),
           "captured TARDBP decrease direction")
     check(all(r.provenance.quote in abstract for r in recs), "every record carries a verbatim abstract quote")
 

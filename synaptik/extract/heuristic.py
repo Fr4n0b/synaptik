@@ -124,7 +124,7 @@ def extract_records_from_abstract(
         pathways: list[NormalizedTerm] = []
         for pat, label, go_id in _PATHWAY_HINTS:
             if pat.search(sent):
-                pathways.append(NormalizedTerm(raw=label, ontology_id=go_id, canonical_label=label, match_confidence=0.8))
+                pathways.append(NormalizedTerm(raw=label, ontology_id=go_id, ontology_label=label, mapping_confidence=0.8))
         if not pathways:
             continue
 
@@ -143,7 +143,7 @@ def extract_records_from_abstract(
             cell_model=CellModel(model_class=model_class),
             perturbation=Perturbation(
                 ptype=PerturbationType.OTHER,
-                target=NormalizedTerm(raw=gene, canonical_label=gene, ontology_id=gene, match_confidence=1.0),
+                target=NormalizedTerm(raw=gene, ontology_label=gene, ontology_id=gene, mapping_confidence=1.0),
             ),
             assay_class=assay,
             outcome=Outcome(
